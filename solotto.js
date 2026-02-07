@@ -208,6 +208,8 @@ class Lottery {
                         const stopTicketInput = document.getElementById('stop-ticket');
                         stopTicketInput.value = winningTicketNumber;
                         const spinBtn = document.getElementById('spin-btn');
+                        const copySignatureBtn = document.getElementById('copy-signature-btn');
+                        copySignatureBtn.innerHTML = signature;
                         spinBtn.click();
                     }
                 }

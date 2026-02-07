@@ -1,5 +1,5 @@
 {
-  "name": "solana-lottery-switchboard",
+  "name": "solotto",
   "version": "1.0.0",
   "description": "Solana lottery client",
   "type": "module",
