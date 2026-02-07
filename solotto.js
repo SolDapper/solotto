@@ -656,9 +656,9 @@ class LotteryManager {
             if(tx.status !== "ok"){return tx;}
             if(authority.secretKey && !encoded){
                 tx.transaction.sign([authority]);
-                const sig = await this.Send(tx.transaction);
+                const sig = await network.Send(tx.transaction);
                 console.log("Signature:", sig);
-                const status = await this.Status(sig);
+                const status = await network.Status(sig);
                 if(status == "finalized"){
                     return await lottery.GetLottery({publicKey: authority.publicKey}, lotteryId);
                 }
