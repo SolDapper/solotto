@@ -237,6 +237,7 @@ class Lottery {
         const LOTTO = await this.GetLottery(authority, lotteryId);
         const TICKET_NUMBER = LOTTO.winnerTicketNumber;
         LOTTO.ticket = await this.GetTicket(authority, lotteryId, TICKET_NUMBER);
+        console.log(LOTTO);
         const keys = [
             { pubkey: new PublicKey(LOTTO.ticket.ticketOwner), isSigner: true, isWritable: true },
             { pubkey: new PublicKey(LOTTO.ticket.lotteryAddress), isSigner: false, isWritable: true },
@@ -244,6 +245,7 @@ class Lottery {
             { pubkey: new PublicKey(LOTTO.ticket.ticketPda), isSigner: false, isWritable: false },
             { pubkey: new PublicKey(LOTTO.prizePoolAddress), isSigner: false, isWritable: true },
         ];
+        console.log(keys);
         const ix = new TransactionInstruction({programId: this.program, keys, data: await claimData()});
         const _tx_ = {};
         _tx_.account = LOTTO.ticket.ticketOwner;       // string : required
@@ -516,7 +518,7 @@ class Lottery {
             lotteryId,
             ticketPrice,
             totalTickets,
-            winnerTicketNumber,
+            winnerTicketNumber: Number(winnerTicketNumber),
             winnerAddress,
             isActive,
             prizePoolBalance,
