@@ -565,7 +565,7 @@ class LotteryManager {
      * @param {Boolean} encoded - true returns encoded transaction
     */
     async Initialize(authority, ticketPrice, lotteryId, encoded = false){
-        const lottery = new Lottery(this.connection, this.program);
+        const lottery = new Lottery(this.connection, false, this.program);
         const network = new LotteryNetwork(this.connection);
         async function initializeData(tketPrice, lotId) {
             const buffer = Buffer.alloc(17); // 1 byte discriminator + 8 bytes price + 8 bytes id
@@ -624,7 +624,7 @@ class LotteryManager {
                 buffer.writeUInt8(INSTRUCTIONS.ENTROPY, 0);
                 return buffer;
             }
-            const lottery = new Lottery(this.connection, this.program);
+            const lottery = new Lottery(this.connection, false, this.program);
             const network = new LotteryNetwork(this.connection);
             const [lotteryPDA] = await lottery.DeriveLotteryPDA(authority.publicKey, lotteryId);
             const keys = [
