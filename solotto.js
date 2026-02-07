@@ -400,29 +400,21 @@ class Lottery {
 
     /*** 
      * @param {PublicKey} authority - Keypair with no secretKey
-     * @param {String} lotteryId - Lottery Id 
-     * @param {String} buyer - Ticket Buyer 
+     * @param {Number} lotteryId - Lottery Id 
+     * @param {PublicKey} buyer - Ticket Buyer Optional
     */
-    async GetTickets(authority, lotteryId, buyer) {
+    async GetTickets(authority, lotteryId, buyer = false) {
         async function numberToBase58(num, byteLength = 8) {
             const buffer = Buffer.alloc(byteLength);
             buffer.writeBigUInt64LE(BigInt(num), 0);
             return bs58.encode(buffer);
         }
         const [lotteryPDA] = await this.DeriveLotteryPDA(authority.publicKey, lotteryId);
-        const data_ = await this.connection.getProgramAccounts(this.program, {
-            filters:[
-                {dataSize: 104},
-                {memcmp:{
-                    offset: 0,
-                    bytes: buyer.publicKey.toString(),
-                },},
-                {memcmp:{
-                    offset: 32,
-                    bytes: lotteryPDA.toString(),
-                },},
-            ],
-        });
+        const filters = [];
+        filters.push({dataSize: 104});
+        if(buyer){filters.push({memcmp:{offset: 0, bytes: buyer.publicKey.toString(),},});}
+        filters.push({memcmp:{offset: 32,bytes: lotteryPDA.toString(),},});
+        const data_ = await this.connection.getProgramAccounts(this.program, {filters:filters,});
         const tickets = [];
         let i = 0;
         while(i < data_.length){
@@ -439,11 +431,13 @@ class Lottery {
             i++;
         }
         tickets.sort((a, b) => b.ticketNumber - a.ticketNumber);
+        let _buyer_ = "All";
+        if(buyer){_buyer_ = buyer.publicKey.toString();}
         return {
             lotteryId: lotteryId,
             lotteryAddress: lotteryPDA.toString(),
             lotteryAuth: authority.publicKey.toString(),
-            buyer: buyer.publicKey.toString(),
+            buyer: _buyer_,
             tickets: tickets,
         };
     }
