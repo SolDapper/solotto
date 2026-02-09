@@ -199,17 +199,25 @@ class Lottery {
             for await (const noti of allNotifications) {
                 const signature = noti.value.signature;
                 const logs = noti.value.logs;
-                const pattern = "Program log: Winning ticket number: ";
+                const pattern_1 = "Program log: Winning ticket number: ";
+                const pattern_2 = "Program log: Fee amount: ";                
+                let winningTicketNumber = 0;
+                let isDraw = false;
                 for await (const log of logs) {
-                    if(log.includes(pattern)){
-                        const winningTicketNumber = parseInt(log.replace(pattern, ""));
-                        const stopTicketInput = document.getElementById('stop-ticket');
-                        stopTicketInput.value = winningTicketNumber;
-                        const spinBtn = document.getElementById('spin-btn');
-                        const copySignatureBtn = document.getElementById('copy-signature-btn');
-                        copySignatureBtn.innerHTML = signature;
-                        spinBtn.click();
+                    if(log.includes(pattern_1)){
+                        winningTicketNumber = parseInt(log.replace(pattern_1, ""));
                     }
+                    if(log.includes(pattern_2)){
+                        isDraw = true;
+                    }
+                }
+                if(isDraw){
+                    const stopTicketInput = document.getElementById('stop-ticket');
+                    stopTicketInput.value = winningTicketNumber;
+                    const spinBtn = document.getElementById('spin-btn');
+                    const copySignatureBtn = document.getElementById('copy-signature-btn');
+                    copySignatureBtn.innerHTML = signature;
+                    spinBtn.click();
                 }
             }
         }
@@ -447,11 +455,7 @@ class Lottery {
     async GetLottery(authority, lotteryId, fees = true) {
         const [lotteryPDA] = await this.DeriveLotteryPDA(authority.publicKey, lotteryId);
         const account = await this.connection.getAccountInfo(lotteryPDA);
-        const LOTTO = await this.DecodeLotteryState(account.data, fees);
-        if(LOTTO.winnerTicketNumber){
-            LOTTO.ticket = await this.GetTicket(authority, lotteryId, LOTTO.winnerTicketNumber);
-        }
-        return LOTTO;
+        return await this.DecodeLotteryState(account.data, fees);
     }
     async DecodeLotteryState(buffer, fees = true){
         let offset = 0;
@@ -503,7 +507,7 @@ class Lottery {
             ticketPrice,
             totalTickets,
             winnerTicketNumber: Number(winnerTicketNumber),
-            winnerAddress: winnerAddress,
+            winnerAddress,
             isActive,
             prizePoolBalance,
             drawInitiated,
