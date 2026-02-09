@@ -12,6 +12,7 @@ const INSTRUCTIONS = {
     BUY_TICKET: 1,
     ENTROPY: 2,
     CLAIM_PRIZE: 3,
+    LOCK_LOTTERY: 4,
 };
 
 class LotteryNetwork {
@@ -606,7 +607,8 @@ class LotteryManager {
     /**
      * @param {Keypair} authority - Keypair
      * @param {String} lotteryId - The lottery id
-     */
+     * @param {Boolean} encoded - true returns encoded transaction
+    */
     async RandomDraw(authority, lotteryId, encoded = false) {
         try{
             async function randomnessData() {
@@ -664,8 +666,66 @@ class LotteryManager {
         }
     }
 
-}
+    /**
+     * @param {Keypair} authority - Keypair
+     * @param {String} lotteryId - The lottery id
+     * @param {Number} lockState - 0 = lock ticket sales, 1 = unlock
+     * @param {Boolean} encoded - true returns encoded transaction
+    */
+    async LockLottery(authority, lotteryId, lockState, encoded = false) {
+        try{
+            async function lockData(lock) {
+                const buffer = Buffer.alloc(2); // 1 byte discriminator + 1 bytes lock status
+                buffer.writeUInt8(INSTRUCTIONS.LOCK_LOTTERY, 0); // lock discriminator
+                buffer.writeUInt8(lock, 1); // write the new lock status
+                return buffer;
+            }
+            const lottery = new Lottery(this.connection, false, this.program);
+            const network = new LotteryNetwork(this.connection);
+            const [lotteryPDA] = await lottery.DeriveLotteryPDA(authority.publicKey, lotteryId);
+            const keys = [
+                { pubkey: authority.publicKey, isSigner: true, isWritable: false },
+                { pubkey: lotteryPDA, isSigner: false, isWritable: true },
+            ];
+            const ix = new TransactionInstruction({programId: this.program, keys, data: await lockData(lockState)});
+            const _tx_ = {};
+            _tx_.account = authority.publicKey.toString(); // string : required
+            _tx_.instructions = [ix];                      // array  : required
+            _tx_.signers = false;                          // array  : default false
+            _tx_.table = false;                            // array  : default false
+            _tx_.tolerance = 1.2;                          // int    : default 1.1    
+            _tx_.compute = true;                           // bool   : default true
+            _tx_.fees = true;                              // bool   : default true
+            _tx_.priority = "Low";                         // string : default Low
+            _tx_.memo = false;
+            if(encoded){
+                _tx_.serialize = true;                        
+                _tx_.encode = true;  
+            }
+            else{
+                _tx_.serialize = false;                        
+                _tx_.encode = false;  
+            }
+            const tx = await network.Tx(_tx_);             // build the tx
+            if(tx.status !== "ok"){return tx;}
+            if(authority.secretKey && !encoded){
+                tx.transaction.sign([authority]);
+                const sig = await network.Send(tx.transaction);
+                console.log("Signature:", sig);
+                const status = await network.Status(sig);
+                if(status == "finalized"){
+                    return await lottery.GetLottery({publicKey: authority.publicKey}, lotteryId, false);
+                }
+                else{return status;}
+            }
+            else{return tx;}           
+        }
+        catch (error) {
+            console.log(error);
+        }
+    }
 
+}
 export {
     Lottery,
     LotteryNetwork,
