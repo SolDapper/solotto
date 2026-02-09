@@ -503,7 +503,7 @@ class Lottery {
             ticketPrice,
             totalTickets,
             winnerTicketNumber: Number(winnerTicketNumber),
-            winnerAddress: new PublicKey(winnerAddress).toString(),
+            winnerAddress: winnerAddress,
             isActive,
             prizePoolBalance,
             drawInitiated,
