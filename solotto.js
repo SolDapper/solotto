@@ -10,10 +10,8 @@ import {EventEmitter} from 'events';
 const INSTRUCTIONS = {
     INITIALIZE_LOTTERY: 0,
     BUY_TICKET: 1,
-    REQUEST_RANDOMNESS: 2, // not used, we currently use entropy
-    CONSUME_RANDOMNESS_AND_DRAW: 3,
-    ENTROPY: 4,
-    CLAIM_PRIZE: 5,
+    ENTROPY: 2,
+    CLAIM_PRIZE: 3,
 };
 
 class LotteryNetwork {
@@ -237,7 +235,6 @@ class Lottery {
         const LOTTO = await this.GetLottery(authority, lotteryId);
         const TICKET_NUMBER = LOTTO.winnerTicketNumber;
         LOTTO.ticket = await this.GetTicket(authority, lotteryId, TICKET_NUMBER);
-        console.log(LOTTO);
         const keys = [
             { pubkey: new PublicKey(LOTTO.ticket.ticketOwner), isSigner: true, isWritable: true },
             { pubkey: new PublicKey(LOTTO.ticket.lotteryAddress), isSigner: false, isWritable: true },
@@ -246,7 +243,6 @@ class Lottery {
             { pubkey: new PublicKey(LOTTO.prizePoolAddress), isSigner: false, isWritable: true },
             { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         ];
-        console.log(keys);
         const ix = new TransactionInstruction({programId: this.program, keys, data: await claimData()});
         const _tx_ = {};
         _tx_.account = LOTTO.ticket.ticketOwner;       // string : required
@@ -446,13 +442,18 @@ class Lottery {
     /*** 
      * @param {PublicKey} authority - Keypair with no secretKey
      * @param {Number} lotteryId - Lottery Id 
+     * @param {Boolean} fees - true = prize pool - 10% (for display before drawing)
     */
-    async GetLottery(authority, lotteryId) {
+    async GetLottery(authority, lotteryId, fees = true) {
         const [lotteryPDA] = await this.DeriveLotteryPDA(authority.publicKey, lotteryId);
         const account = await this.connection.getAccountInfo(lotteryPDA);
-        return await this.DecodeLotteryState(account.data);
+        const LOTTO = await this.DecodeLotteryState(account.data, fees);
+        if(LOTTO.winnerTicketNumber){
+            LOTTO.ticket = await this.GetTicket(authority, lotteryId, LOTTO.winnerTicketNumber);
+        }
+        return LOTTO;
     }
-    async DecodeLotteryState(buffer){
+    async DecodeLotteryState(buffer, fees = true){
         let offset = 0;
         // Helper to handle the 1-byte Option flag
         const readOption = (readFn) => {
@@ -490,31 +491,19 @@ class Lottery {
         // 8. prize_pool: u64 (8 bytes)
         const prizePool = Number(buffer.readBigUInt64LE(offset));
         offset += 8;
-        // 9. vrf_account: Option<Pubkey> (1 + 32 bytes)
-        const vrfAccount = readOption(() => {
-            const val = buffer.slice(offset, offset + 32);
-            offset += 32;
-            return val;
-        });
-        // 10. vrf_result: Option<[u8; 32]> (1 + 32 bytes)
-        const vrfResult = readOption(() => {
-            const val = buffer.slice(offset, offset + 32);
-            offset += 32;
-            return val;
-        });
-        // 11. draw_initiated: bool (1 byte)
         const drawInitiated = buffer.readUInt8(offset) === 1;
         offset += 1;
         const prizePoolAddress = await this.DerivePrizePoolPDA();
         const lotteryAddress = await this.DeriveLotteryPDA(new PublicKey(auth), lotteryId);
-        const prizePoolBalance = prizePool - (prizePool * 0.1);
+        let prizePoolBalance = prizePool;
+        if(fees){prizePoolBalance = prizePool - (prizePool * 0.1);}
         return {
             authority: auth,
             lotteryId,
             ticketPrice,
             totalTickets,
             winnerTicketNumber: Number(winnerTicketNumber),
-            winnerAddress,
+            winnerAddress: new PublicKey(winnerAddress).toString(),
             isActive,
             prizePoolBalance,
             drawInitiated,
@@ -624,17 +613,20 @@ class LotteryManager {
             const lottery = new Lottery(this.connection, false, this.program);
             const network = new LotteryNetwork(this.connection);
             const [lotteryPDA] = await lottery.DeriveLotteryPDA(authority.publicKey, lotteryId);
+            const [prizePoolPDA] = await lottery.DerivePrizePoolPDA();
             const keys = [
                 { pubkey: authority.publicKey, isSigner: true, isWritable: false },
                 { pubkey: lotteryPDA, isSigner: false, isWritable: true },
-                { pubkey: SYSVAR_SLOT_HASHES_PUBKEY, isSigner: false, isWritable: false },
+                { pubkey: SYSVAR_RECENT_BLOCKHASHES_PUBKEY, isSigner: false, isWritable: false },
                 { pubkey: SYSVAR_CLOCK_PUBKEY, isSigner: false, isWritable: false },
+                { pubkey: prizePoolPDA, isSigner: false, isWritable: true },
+                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
             ];
             const ix = new TransactionInstruction({programId: this.program, keys, data: await randomnessData()});
             const _tx_ = {};
             _tx_.account = authority.publicKey.toString(); // string : required
             _tx_.instructions = [ix];                      // array  : required
-            _tx_.signers = false;                          // array  : default false                         // bool   : default false
+            _tx_.signers = false;                          // array  : default false
             _tx_.table = false;                            // array  : default false
             _tx_.tolerance = 1.2;                          // int    : default 1.1    
             _tx_.compute = true;                           // bool   : default true
@@ -657,7 +649,7 @@ class LotteryManager {
                 console.log("Signature:", sig);
                 const status = await network.Status(sig);
                 if(status == "finalized"){
-                    return await lottery.GetLottery({publicKey: authority.publicKey}, lotteryId);
+                    return await lottery.GetLottery({publicKey: authority.publicKey}, lotteryId, false);
                 }
                 else{return status;}
             }
