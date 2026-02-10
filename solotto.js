@@ -184,48 +184,63 @@ class Lottery {
     /*** 
     */
     async WatchDraw(){
-        try{
-            new EventEmitter();
-            EventEmitter.defaultMaxListeners = 1;
-            const abortController = new AbortController();
-            const subscriptions = createSolanaRpcSubscriptions(this.wss, {intervalMs: 30000});
-            const allNotifications = await subscriptions.logsNotifications(
-                {
-                    mentions: [this.program.toString()]
-                },
-                {
-                    commitment: "finalized"
-                }
-            ).subscribe({abortSignal:abortController.signal});
-            for await (const noti of allNotifications) {
-                const signature = noti.value.signature;
-                const logs = noti.value.logs;
-                const pattern_1 = "Program log: Winning ticket number: ";
-                const pattern_2 = "Program log: Fee amount: ";                
-                let winningTicketNumber = 0;
-                let isDraw = false;
-                for await (const log of logs) {
-                    if(log.includes(pattern_1)){
-                        winningTicketNumber = parseInt(log.replace(pattern_1, ""));
+        const self = this;
+        const RECONNECT_DELAY = 5000; // 5 seconds
+        
+        async function connect() {
+            try{
+                console.log('WatchDraw: Connecting to websocket...');
+                new EventEmitter();
+                EventEmitter.defaultMaxListeners = 1;
+                const abortController = new AbortController();
+                const subscriptions = createSolanaRpcSubscriptions(self.wss, {intervalMs: 30000});
+                const allNotifications = await subscriptions.logsNotifications(
+                    {
+                        mentions: [self.program.toString()]
+                    },
+                    {
+                        commitment: "finalized"
                     }
-                    if(log.includes(pattern_2)){
-                        isDraw = true;
+                ).subscribe({abortSignal:abortController.signal});
+                
+                console.log('WatchDraw: Connected successfully');
+                
+                for await (const noti of allNotifications) {
+                    const signature = noti.value.signature;
+                    const logs = noti.value.logs;
+                    const pattern_1 = "Program log: Winning ticket number: ";
+                    const pattern_2 = "Program log: Fee amount: ";                
+                    let winningTicketNumber = 0;
+                    let isDraw = false;
+                    for await (const log of logs) {
+                        if(log.includes(pattern_1)){
+                            winningTicketNumber = parseInt(log.replace(pattern_1, ""));
+                        }
+                        if(log.includes(pattern_2)){
+                            isDraw = true;
+                        }
                     }
-                }
-                if(isDraw){
-                    const stopTicketInput = document.getElementById('stop-ticket');
-                    stopTicketInput.value = winningTicketNumber;
-                    const spinBtn = document.getElementById('spin-btn');
-                    const copySignatureBtn = document.getElementById('copy-signature-btn');
-                    copySignatureBtn.innerHTML = signature;
-                    spinBtn.click();
+                    if(isDraw){
+                        const stopTicketInput = document.getElementById('stop-ticket');
+                        stopTicketInput.value = winningTicketNumber;
+                        const spinBtn = document.getElementById('spin-btn');
+                        const copySignatureBtn = document.getElementById('copy-signature-btn');
+                        copySignatureBtn.innerHTML = signature;
+                        spinBtn.click();
+                    }
                 }
             }
+            catch(err){
+                console.log('WatchDraw: Connection error:', err);
+                console.log(`WatchDraw: Reconnecting in ${RECONNECT_DELAY/1000} seconds...`);
+                setTimeout(() => {
+                    connect();
+                }, RECONNECT_DELAY);
+            }
         }
-        catch(err){
-            console.log(err);
-            return;
-        }
+        
+        // Start the connection
+        connect();
     }
     
     /*** 
@@ -726,6 +741,7 @@ class LotteryManager {
     }
 
 }
+
 export {
     Lottery,
     LotteryNetwork,
