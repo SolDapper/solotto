@@ -1,0 +1,476 @@
+# Solotto
+
+A JavaScript SDK for interacting with the Solotto on-chain lottery program on Solana. Solotto provides a complete interface for creating lotteries, buying tickets, drawing winners, claiming prizes, and querying lottery state — all backed by a Solana smart contract.
+
+---
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Architecture](#architecture)
+- [Classes](#classes)
+  - [LotteryManager](#lotterymanager)
+  - [Lottery](#lottery)
+  - [LotteryNetwork](#lotterynetwork)
+- [API Reference](#api-reference)
+  - [LotteryManager](#lotterymanager-api)
+    - [Initialize](#initialize)
+    - [RandomDraw](#randomdraw)
+    - [LockLottery](#locklottery)
+  - [Lottery](#lottery-api)
+    - [BuyTickets](#buytickets)
+    - [ClaimTicket](#claimticket)
+    - [GetLottery](#getlottery)
+    - [GetTicket](#getticket)
+    - [GetTickets](#gettickets)
+    - [WatchDraw](#watchdraw)
+  - [LotteryNetwork](#lotterynetwork-api)
+    - [Tx](#tx)
+    - [Send](#send)
+    - [Status](#status)
+- [Transaction Modes](#transaction-modes)
+- [Dependencies](#dependencies)
+- [License](#license)
+
+---
+
+## Installation
+
+```bash
+npm install solotto
+```
+
+---
+
+## Quick Start
+
+```js
+import { Connection, PublicKey, Keypair } from "@solana/web3.js";
+import { LotteryManager, Lottery } from "solotto";
+
+const connection = new Connection("https://api.mainnet-beta.solana.com");
+const programId = new PublicKey("YOUR_PROGRAM_ID");
+
+// --- Authority creates a lottery ---
+const authority = Keypair.generate(); // or load from file/wallet
+
+const manager = new LotteryManager(connection, programId);
+const result = await manager.Initialize(authority, 100000000, 1);
+// Creates lottery #1 with a ticket price of 0.1 SOL (in lamports)
+console.log(result); // "finalized"
+```
+
+---
+
+## Architecture
+
+Solotto is organized into three exported classes, each handling a different layer of responsibility:
+
+| Class | Role |
+|---|---|
+| **`LotteryManager`** | Admin operations — initialize lotteries, trigger draws, lock/unlock ticket sales. |
+| **`Lottery`** | Player & read operations — buy tickets, claim prizes, query lottery/ticket state, watch draws via WebSocket. |
+| **`LotteryNetwork`** | Low-level transaction utilities — build, simulate, send, and confirm transactions with automatic compute budget and priority fee estimation. |
+
+---
+
+## Classes
+
+### LotteryManager
+
+Used by the **lottery authority** (admin) to manage lotteries.
+
+```js
+import { LotteryManager } from "solotto";
+
+const manager = new LotteryManager(connection, programId);
+```
+
+**Constructor Parameters:**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `connection` | `Connection` | A `@solana/web3.js` Connection instance. |
+| `program` | `PublicKey` | The Solotto on-chain program ID. |
+
+---
+
+### Lottery
+
+Used by **players** to buy tickets and claim prizes, and by anyone to read lottery state.
+
+```js
+import { Lottery } from "solotto";
+
+const lottery = new Lottery(connection, "wss://your-rpc.com", programId);
+```
+
+**Constructor Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `connection` | `Connection` | — | A `@solana/web3.js` Connection instance. |
+| `wss` | `String \| false` | `false` | WebSocket URL for real-time draw monitoring. Only required if using `WatchDraw()`. |
+| `program` | `PublicKey` | — | The Solotto on-chain program ID. |
+
+---
+
+### LotteryNetwork
+
+Low-level transaction builder and sender. Used internally by `LotteryManager` and `Lottery`, but can also be used directly for custom transaction flows.
+
+```js
+import { LotteryNetwork } from "solotto";
+
+const network = new LotteryNetwork(connection);
+```
+
+**Constructor Parameters:**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `connection` | `Connection` | A `@solana/web3.js` Connection instance. |
+
+---
+
+## API Reference
+
+### LotteryManager API
+
+#### Initialize
+
+Creates a new on-chain lottery.
+
+```js
+const result = await manager.Initialize(authority, ticketPrice, lotteryId, encoded);
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `authority` | `Keypair` | — | The keypair that will own and control the lottery. |
+| `ticketPrice` | `Number` | — | Price per ticket in **lamports** (1 SOL = 1,000,000,000 lamports). |
+| `lotteryId` | `String` | — | A unique numeric identifier for this lottery. |
+| `encoded` | `Boolean` | `false` | If `true`, returns a base64-encoded transaction instead of signing and sending. |
+
+**Returns:** `"finalized"` on success when `encoded` is `false`, or a transaction object when `encoded` is `true`.
+
+---
+
+#### RandomDraw
+
+Triggers the on-chain random draw to select a winning ticket. Only callable by the lottery authority.
+
+```js
+const result = await manager.RandomDraw(authority, lotteryId, encoded);
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `authority` | `Keypair` | — | The lottery authority keypair. |
+| `lotteryId` | `String` | — | The lottery ID to draw. |
+| `encoded` | `Boolean` | `false` | If `true`, returns encoded transaction. |
+
+**Returns:** When `encoded` is `false` and the transaction finalizes, returns the updated lottery state object (see [GetLottery](#getlottery)). Otherwise returns the transaction object.
+
+---
+
+#### LockLottery
+
+Locks or unlocks ticket sales for a lottery. Only callable by the lottery authority.
+
+```js
+// Lock ticket sales
+await manager.LockLottery(authority, lotteryId, 0);
+
+// Unlock ticket sales
+await manager.LockLottery(authority, lotteryId, 1);
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `authority` | `Keypair` | — | The lottery authority keypair. |
+| `lotteryId` | `String` | — | The lottery ID. |
+| `lockState` | `Number` | — | `0` to lock (stop sales), `1` to unlock (resume sales). |
+| `encoded` | `Boolean` | `false` | If `true`, returns encoded transaction. |
+
+**Returns:** Updated lottery state object on finalization, or the transaction object when encoded.
+
+---
+
+### Lottery API
+
+#### BuyTickets
+
+Purchases one or more tickets for a lottery. Supports buying up to 4 tickets in a single transaction.
+
+```js
+const lottery = new Lottery(connection, false, programId);
+
+const result = await lottery.BuyTickets(buyer, authority, lotteryId, amount, encoded);
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `buyer` | `Keypair` | — | The keypair of the ticket buyer. |
+| `authority` | `Keypair \| {publicKey}` | — | The lottery authority (only `publicKey` is needed). |
+| `lotteryId` | `Number` | — | The lottery ID to buy tickets for. |
+| `amount` | `Number` | `1` | Number of tickets to purchase (1–4). |
+| `encoded` | `Boolean` | `false` | If `true`, returns encoded transaction. |
+
+**Returns:** `"finalized"` on success, or the transaction object when encoded.
+
+**Example:**
+
+```js
+import { Connection, PublicKey, Keypair } from "@solana/web3.js";
+import { Lottery } from "solotto";
+
+const connection = new Connection("https://api.mainnet-beta.solana.com");
+const programId = new PublicKey("YOUR_PROGRAM_ID");
+const lottery = new Lottery(connection, false, programId);
+
+const buyer = Keypair.generate();
+const authority = { publicKey: new PublicKey("LOTTERY_AUTHORITY_PUBKEY") };
+
+// Buy 2 tickets for lottery #1
+const result = await lottery.BuyTickets(buyer, authority, 1, 2);
+console.log(result); // "finalized"
+```
+
+---
+
+#### ClaimTicket
+
+Claims the prize for the winning ticket. Must be called by the ticket owner.
+
+```js
+const result = await lottery.ClaimTicket(authority, lotteryId, winner, encoded);
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `authority` | `{publicKey}` | — | The lottery authority (only `publicKey` is needed). |
+| `lotteryId` | `Number` | — | The lottery ID. |
+| `winner` | `Keypair` | — | The keypair of the winning ticket's owner. |
+| `encoded` | `Boolean` | `false` | If `true`, returns encoded transaction. |
+
+**Returns:** `"finalized"` on success, or the transaction object when encoded.
+
+---
+
+#### GetLottery
+
+Fetches the full on-chain state of a lottery.
+
+```js
+const state = await lottery.GetLottery(authority, lotteryId, fees);
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `authority` | `{publicKey}` | — | The lottery authority (only `publicKey` is needed). |
+| `lotteryId` | `Number` | — | The lottery ID. |
+| `fees` | `Boolean` | `true` | If `true`, `prizePoolBalance` reflects the pool minus the 10% protocol fee. Set to `false` for the raw balance. |
+
+**Returns:**
+
+```js
+{
+  authority: "Pubkey...",         // Lottery authority public key
+  lotteryId: 1,                  // Lottery ID
+  ticketPrice: 100000000,        // Ticket price in lamports
+  totalTickets: 42,              // Total tickets sold
+  winnerTicketNumber: 17,        // Winning ticket number (0/null if not drawn)
+  winnerAddress: "Pubkey...",    // Winner's public key (null if not drawn)
+  isActive: true,                // Whether the lottery is active
+  prizePoolBalance: 3780000000,  // Prize pool in lamports (after fees if fees=true)
+  drawInitiated: false,          // Whether a draw has been initiated
+  prizePoolAddress: "Pubkey...", // Prize pool PDA
+  lotteryAddress: "Pubkey...",   // Lottery PDA
+}
+```
+
+---
+
+#### GetTicket
+
+Fetches a single ticket by its ticket number.
+
+```js
+const ticket = await lottery.GetTicket(authority, lotteryId, ticketNumber);
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `authority` | `{publicKey}` | The lottery authority (only `publicKey` is needed). |
+| `lotteryId` | `Number` | The lottery ID. |
+| `ticketNumber` | `Number` | The ticket number to look up. |
+
+**Returns:**
+
+```js
+{
+  ticketOwner: "Pubkey...",     // Owner of the ticket
+  ticketReceipt: "Pubkey...",   // Receipt account public key
+  ticketNumber: 17,             // The ticket number
+  ticketPda: "Pubkey...",       // Ticket PDA
+  lotteryId: 1,                 // Lottery ID
+  lotteryAddress: "Pubkey...",  // Lottery PDA
+  lotteryAuth: "Pubkey...",     // Lottery authority
+}
+```
+
+---
+
+#### GetTickets
+
+Fetches all tickets for a lottery, optionally filtered by buyer.
+
+```js
+// Get all tickets
+const allTickets = await lottery.GetTickets(authority, lotteryId);
+
+// Get tickets for a specific buyer
+const myTickets = await lottery.GetTickets(authority, lotteryId, buyer);
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `authority` | `{publicKey}` | — | The lottery authority. |
+| `lotteryId` | `Number` | — | The lottery ID. |
+| `buyer` | `{publicKey} \| false` | `false` | Optional buyer to filter by. |
+
+**Returns:**
+
+```js
+{
+  lotteryId: 1,
+  lotteryAddress: "Pubkey...",
+  lotteryAuth: "Pubkey...",
+  buyer: "All",                // or the buyer's public key
+  tickets: [
+    {
+      owner: "Pubkey...",
+      lottery: "Pubkey...",
+      ticketReceipt: "Pubkey...",
+      ticketNumber: 42,
+      ticketPda: "Pubkey...",
+    },
+    // ... sorted descending by ticket number
+  ],
+}
+```
+
+---
+
+#### WatchDraw
+
+Opens a WebSocket subscription to listen for draw events in real time. Requires the `wss` parameter to be set in the `Lottery` constructor. Automatically reconnects on connection failure.
+
+```js
+const lottery = new Lottery(connection, "wss://your-rpc.com", programId);
+await lottery.WatchDraw();
+```
+
+> **Note:** This method is designed for browser environments and interacts with DOM elements (`spin-btn`, `stop-ticket`, `copy-signature-btn`) to trigger UI updates when a draw occurs.
+
+---
+
+### LotteryNetwork API
+
+The `LotteryNetwork` class handles low-level transaction construction, simulation, and sending. It is used internally but can also be used directly.
+
+#### Tx
+
+Builds a versioned transaction with automatic compute budget optimization and priority fee estimation.
+
+```js
+const network = new LotteryNetwork(connection);
+
+const result = await network.Tx({
+  account: "PublicKeyString",   // (required) Payer public key as string
+  instructions: [ix1, ix2],     // (required) Array of TransactionInstruction
+  signers: false,               // Array of Keypairs to pre-sign, or false
+  priority: "Low",              // "Low" | "Medium" | "High" | "VeryHigh" | "Extreme"
+  tolerance: 1.1,               // Compute unit multiplier for safety margin
+  serialize: false,             // If true, serializes the transaction
+  encode: false,                // If true, base64-encodes the serialized transaction
+  compute: true,                // If true, simulates and optimizes compute units
+  fees: true,                   // If true, estimates and sets priority fees
+  table: false,                 // Address Lookup Table account, or false
+  memo: false,                  // Optional memo string, or false
+});
+
+// result.status  → "ok" | "error"
+// result.message → "success" | error description
+// result.transaction → VersionedTransaction (or serialized/encoded form)
+```
+
+---
+
+#### Send
+
+Sends a signed transaction to the network.
+
+```js
+const signature = await network.Send(signedTransaction);
+```
+
+**Returns:** A transaction signature string, or an error object `{ status: "error", message: ... }`.
+
+---
+
+#### Status
+
+Polls for transaction confirmation until finalized or timeout.
+
+```js
+const status = await network.Status(signature, maxRetries, intervalSeconds);
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `signature` | `String` | — | The transaction signature. |
+| `maxRetries` | `Number` | `10` | Maximum number of polling attempts. |
+| `intervalSeconds` | `Number` | `3` | Seconds between each poll. |
+
+**Returns:** `"finalized"`, `"program error!"`, or a timeout message string.
+
+---
+
+## Transaction Modes
+
+Every write method (`Initialize`, `RandomDraw`, `LockLottery`, `BuyTickets`, `ClaimTicket`) supports two modes controlled by the `encoded` parameter:
+
+**Direct Mode** (`encoded = false`, default) — The SDK signs, sends, and confirms the transaction. Requires the keypair to have a `secretKey`. Returns the final status or lottery state.
+
+```js
+const result = await manager.Initialize(authority, 100000000, 1);
+// result → "finalized"
+```
+
+**Encoded Mode** (`encoded = true`) — The SDK builds the transaction and returns it as a base64-encoded string. Useful for wallet adapters or server-side signing flows where the private key is not directly available.
+
+```js
+const result = await manager.Initialize(authority, 100000000, 1, true);
+// result.transaction → base64-encoded transaction string
+// Sign and send with your wallet adapter
+```
+
+---
+
+## Dependencies
+
+- `@solana/web3.js` — Solana JavaScript SDK
+- `@solana/spl-memo` — Memo program instruction helper
+- `@solana/kit` — WebSocket subscriptions (for `WatchDraw`)
+- `bn.js` — Big number library
+- `bs58` — Base58 encoding/decoding
+- `buffer-layout` — Buffer struct layout parsing
+
+---
+
+## License
+
+See [LICENSE](./LICENSE) for details.
