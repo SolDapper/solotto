@@ -1,6 +1,6 @@
 {
   "name": "solotto",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Solana lottery client",
   "type": "module",
   "main": "solotto.js",

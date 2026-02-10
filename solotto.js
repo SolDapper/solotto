@@ -162,7 +162,7 @@ class LotteryNetwork {
     }
 }
 
-class Lottery {
+class Lottery extends EventEmitter {
 
     /*** 
     * @param {Connection} connection - Solana connection
@@ -170,6 +170,7 @@ class Lottery {
     * @param {PublicKey} program - Lottery Program Id 
     */
     constructor(connection, wss = false, program){
+        super();
         this.connection=connection;
         this.wss=wss;
         this.program=program;
@@ -190,8 +191,6 @@ class Lottery {
         async function connect() {
             try{
                 console.log('WatchDraw: Connecting to websocket...');
-                new EventEmitter();
-                EventEmitter.defaultMaxListeners = 1;
                 const abortController = new AbortController();
                 const subscriptions = createSolanaRpcSubscriptions(self.wss, {intervalMs: 30000});
                 const allNotifications = await subscriptions.logsNotifications(
@@ -204,6 +203,7 @@ class Lottery {
                 ).subscribe({abortSignal:abortController.signal});
                 
                 console.log('WatchDraw: Connected successfully');
+                self.emit('connected');
                 
                 for await (const noti of allNotifications) {
                     const signature = noti.value.signature;
@@ -221,18 +221,15 @@ class Lottery {
                         }
                     }
                     if(isDraw){
-                        const stopTicketInput = document.getElementById('stop-ticket');
-                        stopTicketInput.value = winningTicketNumber;
-                        const spinBtn = document.getElementById('spin-btn');
-                        const copySignatureBtn = document.getElementById('copy-signature-btn');
-                        copySignatureBtn.innerHTML = signature;
-                        spinBtn.click();
+                        self.emit('draw', { winningTicketNumber, signature });
                     }
                 }
             }
             catch(err){
                 console.log('WatchDraw: Connection error:', err);
+                self.emit('error', err);
                 console.log(`WatchDraw: Reconnecting in ${RECONNECT_DELAY/1000} seconds...`);
+                self.emit('reconnecting', { delay: RECONNECT_DELAY });
                 setTimeout(() => {
                     connect();
                 }, RECONNECT_DELAY);

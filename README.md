@@ -98,7 +98,7 @@ const manager = new LotteryManager(connection, programId);
 
 ### Lottery
 
-Used by **players** to buy tickets and claim prizes, and by anyone to read lottery state.
+Used by **players** to buy tickets and claim prizes, and by anyone to read lottery state. Extends `EventEmitter` to provide real-time draw notifications via `WatchDraw()`.
 
 ```js
 import { Lottery } from "solotto";
@@ -368,12 +368,42 @@ const myTickets = await lottery.GetTickets(authority, lotteryId, buyer);
 
 Opens a WebSocket subscription to listen for draw events in real time. Requires the `wss` parameter to be set in the `Lottery` constructor. Automatically reconnects on connection failure.
 
+The `Lottery` class extends `EventEmitter`, so you subscribe to draw results and connection lifecycle events using standard `.on()` listeners.
+
 ```js
 const lottery = new Lottery(connection, "wss://your-rpc.com", programId);
+
+// Listen for draw results
+lottery.on("draw", ({ winningTicketNumber, signature }) => {
+  console.log(`Winning ticket: #${winningTicketNumber}`);
+  console.log(`Transaction: ${signature}`);
+});
+
+// Connection lifecycle events (optional)
+lottery.on("connected", () => {
+  console.log("WebSocket connected");
+});
+
+lottery.on("error", (err) => {
+  console.error("WebSocket error:", err);
+});
+
+lottery.on("reconnecting", ({ delay }) => {
+  console.log(`Reconnecting in ${delay / 1000}s...`);
+});
+
+// Start watching
 await lottery.WatchDraw();
 ```
 
-> **Note:** This method is designed for browser environments and interacts with DOM elements (`spin-btn`, `stop-ticket`, `copy-signature-btn`) to trigger UI updates when a draw occurs.
+**Emitted Events:**
+
+| Event | Payload | Description |
+|---|---|---|
+| `draw` | `{ winningTicketNumber: Number, signature: String }` | Fired when a lottery draw is finalized on-chain. |
+| `connected` | — | Fired when the WebSocket connection is established. |
+| `error` | `Error` | Fired when the WebSocket encounters a connection error. |
+| `reconnecting` | `{ delay: Number }` | Fired before an automatic reconnection attempt. `delay` is in milliseconds. |
 
 ---
 
