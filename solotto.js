@@ -684,7 +684,7 @@ class LotteryManager {
     /**
      * @param {Keypair} authority - Keypair
      * @param {String} lotteryId - The lottery id
-     * @param {Number} lockState - 0 = lock ticket sales, 1 = unlock
+     * @param {Number} lockState - 0 = lock ticket sales, 1 = unlock (requires authority)
      * @param {Boolean} encoded - true returns encoded transaction
     */
     async LockLottery(authority, lotteryId, lockState, encoded = false) {
