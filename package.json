@@ -1,6 +1,6 @@
 {
   "name": "solotto",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Solana lottery client",
   "type": "module",
   "types": "./solotto.d.ts",

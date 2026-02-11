@@ -10,7 +10,7 @@ import {EventEmitter} from 'events';
 const INSTRUCTIONS = {
     INITIALIZE_LOTTERY: 0,
     BUY_TICKET: 1,
-    ENTROPY: 2,
+    DRAW_WINNER: 2,
     CLAIM_PRIZE: 3,
     LOCK_LOTTERY: 4,
 };
@@ -625,7 +625,7 @@ class LotteryManager {
         try{
             async function randomnessData() {
                 const buffer = Buffer.alloc(1);
-                buffer.writeUInt8(INSTRUCTIONS.ENTROPY, 0);
+                buffer.writeUInt8(INSTRUCTIONS.DRAW_WINNER, 0);
                 return buffer;
             }
             const lottery = new Lottery(this.connection, false, this.program);
