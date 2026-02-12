@@ -62,7 +62,7 @@ declare module "solotto" {
     totalTickets: number;
     /** Winning ticket number, or `0`/`null` if not yet drawn. */
     winnerTicketNumber: number | null;
-    /** Winner's public key, or `null` if not yet drawn. */
+    /** Winner's public key as a base-58 string, or `null` if not yet drawn. */
     winnerAddress: string | null;
     /** Whether the lottery is currently active. */
     isActive: boolean;
@@ -74,6 +74,10 @@ declare module "solotto" {
     prizePoolAddress: string;
     /** Lottery PDA as a base-58 string. */
     lotteryAddress: string;
+    /** Release address (lottery PDA) as a base-58 string. */
+    release: string;
+    /** Unix timestamp when unclaimed prizes can be released, or `null` if not set. */
+    releaseTime: number | null;
   }
 
   // ── Ticket State ──────────────────────────────────────────────────────
@@ -319,6 +323,18 @@ declare module "solotto" {
       authority: Keypair,
       lotteryId: number,
       lockState: 0 | 1,
+      encoded?: boolean
+    ): Promise<LotteryState | string | TxResult | undefined>;
+
+    /**
+     * Reclaim prize pool funds from an expired lottery where the winner did not claim in time.
+     * @param authority - The lottery authority keypair.
+     * @param lotteryId - Lottery numeric identifier.
+     * @param encoded   - If `true`, return a base64-encoded transaction.
+     */
+    ClaimExpired(
+      authority: Keypair,
+      lotteryId: number,
       encoded?: boolean
     ): Promise<LotteryState | string | TxResult | undefined>;
   }

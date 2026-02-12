@@ -18,6 +18,7 @@ A JavaScript SDK for interacting with the Solotto on-chain lottery program on So
     - [Initialize](#initialize)
     - [RandomDraw](#randomdraw)
     - [LockLottery](#locklottery)
+    - [ClaimExpired](#claimexpired)
   - [Lottery](#lottery-api)
     - [BuyTickets](#buytickets)
     - [ClaimTicket](#claimticket)
@@ -198,6 +199,24 @@ await manager.LockLottery(authority, lotteryId, 1);
 
 ---
 
+#### ClaimExpired
+
+Reclaims the prize pool funds from an expired lottery where the winner did not claim in time. Only callable by the lottery authority.
+
+```js
+const result = await manager.ClaimExpired(authority, lotteryId, encoded);
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `authority` | `Keypair` | — | The lottery authority keypair. |
+| `lotteryId` | `String` | — | The lottery ID. |
+| `encoded` | `Boolean` | `false` | If `true`, returns encoded transaction. |
+
+**Returns:** Updated lottery state object on finalization, or the transaction object when encoded.
+
+---
+
 ### Lottery API
 
 #### BuyTickets
@@ -282,12 +301,14 @@ const state = await lottery.GetLottery(authority, lotteryId, fees);
   ticketPrice: 100000000,        // Ticket price in lamports
   totalTickets: 42,              // Total tickets sold
   winnerTicketNumber: 17,        // Winning ticket number (0/null if not drawn)
-  winnerAddress: "Pubkey...",    // Winner's public key (null if not drawn)
+  winnerAddress: "Pubkey...",    // Winner's public key as string (null if not drawn)
   isActive: true,                // Whether the lottery is active
   prizePoolBalance: 3780000000,  // Prize pool in lamports (after fees if fees=true)
   drawInitiated: false,          // Whether a draw has been initiated
   prizePoolAddress: "Pubkey...", // Prize pool PDA
   lotteryAddress: "Pubkey...",   // Lottery PDA
+  release: "Pubkey...",          // Release address (lottery PDA)
+  releaseTime: null,             // Unix timestamp when unclaimed prizes can be released (null if not set)
 }
 ```
 

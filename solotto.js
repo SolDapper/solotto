@@ -13,6 +13,7 @@ const INSTRUCTIONS = {
     DRAW_WINNER: 2,
     CLAIM_PRIZE: 3,
     LOCK_LOTTERY: 4,
+    RELEASE_EXPIRED: 5,
 };
 
 class LotteryNetwork {
@@ -496,12 +497,16 @@ class Lottery extends EventEmitter {
             offset += 8;
             return val;
         });
+
         // 6. winner_address: Option<Pubkey> (1 + 32 bytes)
-        const winnerAddress = readOption(() => {
-            const val = buffer.slice(offset, offset + 32);
-            offset += 32;
-            return val;
-        });
+        let winnerAddress = null;
+        try{
+            winnerAddress = readOption(() => {
+                const val = buffer.slice(offset, offset + 32);
+                offset += 32;
+                return new PublicKey(val).toString();
+            });
+        }catch{}
         // 7. is_active: bool (1 byte)
         const isActive = buffer.readUInt8(offset) === 1;
         offset += 1;
@@ -510,6 +515,15 @@ class Lottery extends EventEmitter {
         offset += 8;
         const drawInitiated = buffer.readUInt8(offset) === 1;
         offset += 1;
+        // 9. draw_timestamp: Option<u64> (1 + 8 bytes)
+        let releaseTime = null;
+        try{
+            releaseTime = readOption(() => {
+                const val = buffer.readBigUInt64LE(offset);
+                offset += 8;
+                return Number(releaseTime);
+            });
+        }catch{}
         const prizePoolAddress = await this.DerivePrizePoolPDA();
         const lotteryAddress = await this.DeriveLotteryPDA(new PublicKey(auth), lotteryId);
         let prizePoolBalance = prizePool;
@@ -526,6 +540,8 @@ class Lottery extends EventEmitter {
             drawInitiated,
             prizePoolAddress: prizePoolAddress[0].toString(),
             lotteryAddress: lotteryAddress[0].toString(),
+            release: lotteryAddress[0].toString(),
+            releaseTime,
         };
     };
 
@@ -635,8 +651,7 @@ class LotteryManager {
             const keys = [
                 { pubkey: authority.publicKey, isSigner: true, isWritable: false },
                 { pubkey: lotteryPDA, isSigner: false, isWritable: true },
-                { pubkey: SYSVAR_RECENT_BLOCKHASHES_PUBKEY, isSigner: false, isWritable: false },
-                { pubkey: SYSVAR_CLOCK_PUBKEY, isSigner: false, isWritable: false },
+                { pubkey: SYSVAR_SLOT_HASHES_PUBKEY, isSigner: false, isWritable: false },
                 { pubkey: prizePoolPDA, isSigner: false, isWritable: true },
                 { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
             ];
@@ -700,6 +715,66 @@ class LotteryManager {
                 { pubkey: lotteryPDA, isSigner: false, isWritable: true },
             ];
             const ix = new TransactionInstruction({programId: this.program, keys, data: await lockData(lockState)});
+            const _tx_ = {};
+            _tx_.account = authority.publicKey.toString(); // string : required
+            _tx_.instructions = [ix];                      // array  : required
+            _tx_.signers = false;                          // array  : default false
+            _tx_.table = false;                            // array  : default false
+            _tx_.tolerance = 1.2;                          // int    : default 1.1    
+            _tx_.compute = true;                           // bool   : default true
+            _tx_.fees = true;                              // bool   : default true
+            _tx_.priority = "Low";                         // string : default Low
+            _tx_.memo = false;
+            if(encoded){
+                _tx_.serialize = true;                        
+                _tx_.encode = true;  
+            }
+            else{
+                _tx_.serialize = false;                        
+                _tx_.encode = false;  
+            }
+            const tx = await network.Tx(_tx_);             // build the tx
+            if(tx.status !== "ok"){return tx;}
+            if(authority.secretKey && !encoded){
+                tx.transaction.sign([authority]);
+                const sig = await network.Send(tx.transaction);
+                console.log("Signature:", sig);
+                const status = await network.Status(sig);
+                if(status == "finalized"){
+                    return await lottery.GetLottery({publicKey: authority.publicKey}, lotteryId, false);
+                }
+                else{return status;}
+            }
+            else{return tx;}           
+        }
+        catch (error) {
+            console.log(error);
+        }
+    }
+
+    /**
+     * @param {Keypair} authority - Keypair
+     * @param {String} lotteryId - The lottery id
+     * @param {Boolean} encoded - true returns encoded transaction
+    */
+    async ClaimExpired(authority, lotteryId, encoded = false) {
+        try{
+            async function expiredData() {
+                const buffer = Buffer.alloc(1); // 1 byte discriminator + 1 bytes lock status
+                buffer.writeUInt8(INSTRUCTIONS.RELEASE_EXPIRED, 0); // lock discriminator
+                return buffer;
+            }
+            const lottery = new Lottery(this.connection, false, this.program);
+            const network = new LotteryNetwork(this.connection);
+            const [lotteryPDA] = await lottery.DeriveLotteryPDA(authority.publicKey, lotteryId);
+            const LOTTO = await lottery.GetLottery(authority, lotteryId);
+            const keys = [
+                { pubkey: authority.publicKey, isSigner: true, isWritable: true },
+                { pubkey: lotteryPDA, isSigner: false, isWritable: true },
+                { pubkey: new PublicKey(LOTTO.prizePoolAddress), isSigner: false, isWritable: true },
+                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+            ];
+            const ix = new TransactionInstruction({programId: this.program, keys, data: await expiredData()});
             const _tx_ = {};
             _tx_.account = authority.publicKey.toString(); // string : required
             _tx_.instructions = [ix];                      // array  : required
