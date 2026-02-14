@@ -840,9 +840,7 @@ class LotteryManager {
                 buffer.writeBigUInt64LE(BigInt(lamports), 9);
                 return buffer;
             }
-            if(message){
-                message = ":booster:"+authority.publicKey.toString()+","+lotteryId+","+booster.publicKey.toString()+","+amount+":booster:"+message;
-            }
+            if(message){message = ":booster:"+message;}
             const lottery = new Lottery(this.connection, false, this.program);
             const network = new LotteryNetwork(this.connection);
             const [lotteryPDA] = await lottery.DeriveLotteryPDA(authority.publicKey, lotteryId);
@@ -901,46 +899,62 @@ class LotteryManager {
      * @param {String} lotteryId - The lottery id
      * @param {Boolean} group - if true, groups results by booster wallet address
      * @param {Number} limit - the results to request (max 1000)
-     * @returns {Array|Object} - Array of booster objects or Object grouped by booster address
-     * Booster objects are returned if the transaction memo includes ":booster:" and matches the authority and lotteryId (if provided)
-     * Booster memo format: ":booster:authorityPublicKey,lotteryId,boosterPublicKey,amount:booster:optionalMessage"
-     * Example return object: { authority: "authorityPublicKey", lotteryId: "1", booster: "boosterPublicKey", amount: 1.5, signature: "transactionSignature" }
-     * If authority is provided, only boosters from that authority are returned
-     * If lotteryId is provided, only boosters for that lotteryId are returned
-     * If both authority and lotteryId are provided, only boosters matching both are returned
-     * If neither is provided, all boosters are returned up to the specified limit
-     * If group is true, returns object with booster addresses as keys, each containing array of boost objects and total amount
-     * Example grouped return: { "boosterPublicKey": { boost: [...], total: 5.5 } }
+     * @returns {Array|Object} - Array of booster objects or grouped booster objects if group=true
     */
     async GetBoosters(authority=false, lotteryId=false, group=false, limit=1000) {
         try{
+            const initial = [];
             const result = [];
             const signatures = await this.connection.getSignaturesForAddress(this.program, {limit: limit,});
             for await (const row of signatures) {
-                if(row.memo && row.memo.includes(":booster:")){
-                    const memo = row.memo.split(":booster:")[1];
-                    const [auth, lotId, booster, amount] = memo.split(",");
-                    if((authority ? authority.publicKey.toString() === auth : true) &&
-                    (lotteryId ? lotteryId.toString() === lotId : true)
-                    ){
-                        result.push({
-                            lotteryId: Number(lotId),
-                            authority: auth,
-                            booster: booster,
-                            amount: parseFloat(amount),
-                            signature: row.signature
-                        });
-                    }
+                if(!row.err && row.confirmationStatus=="finalized" && row.memo && row.memo.includes(":booster:")){
+                    initial.push(row);
                 }
             }
+            for await (const init of initial) {
+                const tx = await this.connection.getTransaction(init.signature,{maxSupportedTransactionVersion:0});
+                const logs = tx.meta.logMessages;
+                const item = {};
+                let isBooster = false;
+                for await (const log of logs){if(log.includes("Program log: Boosted by")){isBooster=true;}}
+                if(!isBooster){continue;}
+                for await (const log of logs) {
+                    if(log.includes("Program log: Boosted by ")){
+                        item.booster = log.replace("Program log: Boosted by ","").trim();
+                    }
+                    else if(log.includes("Program log: Lottery ID ")){
+                        item.lotteryId = Number(log.replace("Program log: Lottery ID ","").trim());
+                    }
+                    else if(log.includes("Program log: Boost amount: ")){
+                        const data = log.replace("Program log: Boost amount: ","").trim();
+                        item.amount = parseFloat(data.split(" SOL ")[0]);
+                    }
+                    else if(log.includes("Program log: Memo ")){
+                        const parts = log.split(":booster:");
+                        item.message = parts[1].slice(0, -1).trim();
+                    }
+                    else if(log.includes("Program log: Authority ")){
+                        item.authority = log.replace("Program log: Authority ","").trim();
+                    }
+                }
+                // Apply filters with safety checks
+                const matchesAuthority = authority ? (item.authority && authority.publicKey.toString() === item.authority) : true;
+                const matchesLotteryId = lotteryId ? (item.lotteryId !== undefined && lotteryId.toString() === item.lotteryId.toString()) : true;
+                if(matchesAuthority && matchesLotteryId && item.amount >= 0.0001){
+                    item.signature = init.signature;
+                    result.push(item);
+                }
+            }
+            // Group by booster if requested
             if (group) {
                 const grouped = {};
                 result.forEach(item => {
                     if (!grouped[item.booster]) {
                         grouped[item.booster] = {
                             boost: [],
-                            total: 0
-                        }
+                            total: 0,
+                            count: 0
+                        };
                     }
                     grouped[item.booster].boost.push(item);
                     grouped[item.booster].total += item.amount;
@@ -948,7 +962,6 @@ class LotteryManager {
                 });
                 return grouped;
             }
-            
             return result;
         }
         catch (error) {return error;}

@@ -242,13 +242,13 @@ const result = await manager.Boost(authority, lotteryId, booster, 1.0, "Good luc
 
 **Returns:** `"boosted"` on success, `"Draw initiated, cannot boost this prize pool"` if the draw has already started, or the transaction object when encoded.
 
-> **Note:** When a `message` is provided, the SDK automatically prepends a structured memo in the format `:booster:authority,lotteryId,booster,amount:booster:` before your message. This structured prefix is used by `GetBoosters` to index boost history from on-chain transaction memos.
+> **Note:** When a `message` is provided, the SDK prepends `:booster:` to the memo string. This tag is used by `GetBoosters` to identify boost transactions when scanning on-chain history.
 
 ---
 
 #### GetBoosters
 
-Retrieves boost history by scanning on-chain transaction memos. Can filter by authority, lottery ID, or both, and optionally group results by booster wallet address.
+Retrieves boost history by scanning on-chain program logs for boost transactions. Filters out errored and non-finalized transactions, and only includes boosts of at least 0.0001 SOL. Can filter by authority, lottery ID, or both, and optionally group results by booster wallet address.
 
 ```js
 // Get all boosters for a specific lottery
@@ -273,10 +273,11 @@ const grouped = await manager.GetBoosters(authority, lotteryId, true);
 ```js
 [
   {
-    lotteryId: 1,
-    authority: "Pubkey...",
-    booster: "Pubkey...",
-    amount: 0.5,
+    booster: "Pubkey...",       // Booster wallet public key
+    lotteryId: 1,               // Lottery ID
+    authority: "Pubkey...",     // Lottery authority public key
+    amount: 0.5,                // Boost amount in SOL
+    message: "Good luck!",     // Optional memo message (empty string if none)
     signature: "TxSignature...",
   },
   // ...
@@ -289,7 +290,7 @@ const grouped = await manager.GetBoosters(authority, lotteryId, true);
 {
   "BoosterPubkey...": {
     boost: [
-      { lotteryId: 1, authority: "Pubkey...", booster: "Pubkey...", amount: 0.5, signature: "TxSig..." },
+      { booster: "Pubkey...", lotteryId: 1, authority: "Pubkey...", amount: 0.5, message: "...", signature: "TxSig..." },
       // ...
     ],
     total: 1.5,    // Sum of all boost amounts in SOL

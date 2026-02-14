@@ -141,14 +141,16 @@ declare module "solotto" {
   // ── Booster Types ──────────────────────────────────────────────────
 
   interface BoosterRecord {
+    /** Booster wallet public key. */
+    booster: string;
     /** Lottery numeric identifier. */
     lotteryId: number;
     /** Lottery authority public key. */
     authority: string;
-    /** Booster wallet public key. */
-    booster: string;
     /** Boost amount in SOL. */
     amount: number;
+    /** Optional memo message from the booster. */
+    message: string;
     /** Transaction signature. */
     signature: string;
   }
