@@ -896,7 +896,7 @@ class LotteryManager {
 
     /**
      * @param {Keypair} authority - Keypair
-     * @param {String} lotteryId - The lottery id
+     * @param {Number} lotteryId - The lottery id
      * @param {Boolean} group - if true, groups results by booster wallet address
      * @param {Number} limit - the results to request (max 1000)
      * @returns {Array|Object} - Array of booster objects or grouped booster objects if group=true
