@@ -19,11 +19,11 @@ A JavaScript SDK for interacting with the Solotto on-chain lottery program on So
     - [RandomDraw](#randomdraw)
     - [LockLottery](#locklottery)
     - [ClaimExpired](#claimexpired)
-    - [Boost](#boost)
-    - [GetBoosters](#getboosters)
   - [Lottery](#lottery-api)
     - [BuyTickets](#buytickets)
     - [ClaimTicket](#claimticket)
+    - [Boost](#boost)
+    - [GetBoosters](#getboosters)
     - [GetLottery](#getlottery)
     - [GetTicket](#getticket)
     - [GetTickets](#gettickets)
@@ -72,8 +72,8 @@ Solotto is organized into three exported classes, each handling a different laye
 
 | Class | Role |
 |---|---|
-| **`LotteryManager`** | Admin operations — initialize lotteries, trigger draws, lock/unlock ticket sales. |
-| **`Lottery`** | Player & read operations — buy tickets, claim prizes, query lottery/ticket state, watch draws via WebSocket. |
+| **`LotteryManager`** | Admin operations — initialize lotteries, trigger draws, lock/unlock ticket sales, reclaim expired prizes. |
+| **`Lottery`** | Player & read operations — buy tickets, claim prizes, boost prize pools, query lottery/ticket/booster state, watch draws via WebSocket. |
 | **`LotteryNetwork`** | Low-level transaction utilities — build, simulate, send, and confirm transactions with automatic compute budget and priority fee estimation. |
 
 ---
@@ -219,89 +219,6 @@ const result = await manager.ClaimExpired(authority, lotteryId, encoded);
 
 ---
 
-#### Boost
-
-Boosts a lottery's prize pool by transferring SOL from any wallet. Can be called by anyone, not just the authority. Optionally attaches a memo message to the transaction.
-
-```js
-// Boost lottery #1 with 0.5 SOL
-const result = await manager.Boost(authority, lotteryId, booster, 0.5);
-
-// Boost with a memo message
-const result = await manager.Boost(authority, lotteryId, booster, 1.0, "Good luck everyone!");
-```
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `authority` | `{publicKey}` | — | The lottery authority (only `publicKey` is needed). |
-| `lotteryId` | `String` | — | The lottery ID. |
-| `booster` | `Keypair` | — | The keypair of the wallet sending the boost. |
-| `amount` | `Number` | — | Amount of SOL to boost (e.g. `0.5` for 0.5 SOL). |
-| `message` | `String \| false` | `false` | Optional memo string attached to the transaction. |
-| `encoded` | `Boolean` | `false` | If `true`, returns encoded transaction. |
-
-**Returns:** `"boosted"` on success, `"Draw initiated, cannot boost this prize pool"` if the draw has already started, or the transaction object when encoded.
-
-> **Note:** When a `message` is provided, the SDK prepends `:booster:` to the memo string. This tag is used by `GetBoosters` to identify boost transactions when scanning on-chain history.
-
----
-
-#### GetBoosters
-
-Retrieves boost history by scanning on-chain program logs for boost transactions. Filters out errored and non-finalized transactions, and only includes boosts of at least 0.0001 SOL. Can filter by authority, lottery ID, or both, and optionally group results by booster wallet address.
-
-```js
-// Get all boosters for a specific lottery
-const boosters = await manager.GetBoosters(authority, lotteryId);
-
-// Get all boosters across all lotteries (up to 500 transactions)
-const allBoosters = await manager.GetBoosters(false, false, false, 500);
-
-// Get boosters grouped by wallet address
-const grouped = await manager.GetBoosters(authority, lotteryId, true);
-```
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `authority` | `{publicKey} \| false` | `false` | Filter by lottery authority. Pass `false` to include all authorities. |
-| `lotteryId` | `Number \| false` | `false` | Filter by lottery ID. Pass `false` to include all lotteries. |
-| `group` | `Boolean` | `false` | If `true`, groups results by booster wallet address. |
-| `limit` | `Number` | `1000` | Maximum number of recent transactions to scan (max 1000). |
-
-**Returns (ungrouped):** An array of booster objects:
-
-```js
-[
-  {
-    booster: "Pubkey...",       // Booster wallet public key
-    lotteryId: 1,               // Lottery ID
-    authority: "Pubkey...",     // Lottery authority public key
-    amount: 0.5,                // Boost amount in SOL
-    message: "Good luck!",     // Optional memo message (empty string if none)
-    signature: "TxSignature...",
-  },
-  // ...
-]
-```
-
-**Returns (grouped, `group = true`):** An object keyed by booster wallet address:
-
-```js
-{
-  "BoosterPubkey...": {
-    boost: [
-      { booster: "Pubkey...", lotteryId: 1, authority: "Pubkey...", amount: 0.5, message: "...", signature: "TxSig..." },
-      // ...
-    ],
-    total: 1.5,    // Sum of all boost amounts in SOL
-    count: 3,      // Number of boosts
-  },
-  // ...
-}
-```
-
----
-
 ### Lottery API
 
 #### BuyTickets
@@ -360,6 +277,89 @@ const result = await lottery.ClaimTicket(authority, lotteryId, winner, encoded);
 | `encoded` | `Boolean` | `false` | If `true`, returns encoded transaction. |
 
 **Returns:** `"finalized"` on success, the simulation log array (`string[]`) if the transaction fails simulation, or the transaction object when encoded.
+
+---
+
+#### Boost
+
+Boosts a lottery's prize pool by transferring SOL from any wallet. Can be called by anyone, not just the authority. Optionally attaches a memo message to the transaction.
+
+```js
+// Boost lottery #1 with 0.5 SOL
+const result = await lottery.Boost(authority, lotteryId, booster, 0.5);
+
+// Boost with a memo message
+const result = await lottery.Boost(authority, lotteryId, booster, 1.0, "Good luck everyone!");
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `authority` | `{publicKey}` | — | The lottery authority (only `publicKey` is needed). |
+| `lotteryId` | `String` | — | The lottery ID. |
+| `booster` | `Keypair` | — | The keypair of the wallet sending the boost. |
+| `amount` | `Number` | — | Amount of SOL to boost (e.g. `0.5` for 0.5 SOL). |
+| `message` | `String \| false` | `false` | Optional memo string attached to the transaction. |
+| `encoded` | `Boolean` | `false` | If `true`, returns encoded transaction. |
+
+**Returns:** `"boosted"` on success, `"Draw initiated, cannot boost this prize pool"` if the draw has already started, or the transaction object when encoded.
+
+> **Note:** When a `message` is provided, the SDK prepends `:booster:` to the memo string. This tag is used by `GetBoosters` to identify boost transactions when scanning on-chain history.
+
+---
+
+#### GetBoosters
+
+Retrieves boost history by scanning on-chain program logs for boost transactions. Filters out errored and non-finalized transactions, and only includes boosts of at least 0.0001 SOL. Can filter by authority, lottery ID, or both, and optionally group results by booster wallet address.
+
+```js
+// Get all boosters for a specific lottery
+const boosters = await lottery.GetBoosters(authority, lotteryId);
+
+// Get all boosters across all lotteries (up to 500 transactions)
+const allBoosters = await lottery.GetBoosters(false, false, false, 500);
+
+// Get boosters grouped by wallet address
+const grouped = await lottery.GetBoosters(authority, lotteryId, true);
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `authority` | `{publicKey} \| false` | `false` | Filter by lottery authority. Pass `false` to include all authorities. |
+| `lotteryId` | `Number \| false` | `false` | Filter by lottery ID. Pass `false` to include all lotteries. |
+| `group` | `Boolean` | `false` | If `true`, groups results by booster wallet address. |
+| `limit` | `Number` | `1000` | Maximum number of recent transactions to scan (max 1000). |
+
+**Returns (ungrouped):** An array of booster objects:
+
+```js
+[
+  {
+    booster: "Pubkey...",       // Booster wallet public key
+    lotteryId: 1,               // Lottery ID
+    authority: "Pubkey...",     // Lottery authority public key
+    amount: 0.5,                // Boost amount in SOL
+    message: "Good luck!",     // Optional memo message (empty string if none)
+    signature: "TxSignature...",
+  },
+  // ...
+]
+```
+
+**Returns (grouped, `group = true`):** An object keyed by booster wallet address:
+
+```js
+{
+  "BoosterPubkey...": {
+    boost: [
+      { booster: "Pubkey...", lotteryId: 1, authority: "Pubkey...", amount: 0.5, message: "...", signature: "TxSig..." },
+      // ...
+    ],
+    total: 1.5,    // Sum of all boost amounts in SOL
+    count: 3,      // Number of boosts
+  },
+  // ...
+}
+```
 
 ---
 

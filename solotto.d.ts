@@ -290,6 +290,50 @@ declare module "solotto" {
       buyer?: HasPublicKey | false
     ): Promise<TicketListResult>;
 
+    /**
+     * Boost a lottery's prize pool by transferring SOL from any wallet.
+     * @param authority - The lottery authority (only `publicKey` needed).
+     * @param lotteryId - Lottery numeric identifier.
+     * @param booster   - The keypair of the wallet sending the boost.
+     * @param amount    - Amount of SOL to boost (e.g. `0.5` for 0.5 SOL).
+     * @param message   - Optional memo string attached to the transaction.
+     * @param encoded   - If `true`, return a base64-encoded transaction.
+     */
+    Boost(
+      authority: HasPublicKey,
+      lotteryId: number,
+      booster: Keypair,
+      amount: number,
+      message?: string | false,
+      encoded?: boolean
+    ): Promise<string | TxResult | undefined>;
+
+    /**
+     * Retrieve boost history from on-chain program logs.
+     * @param authority - Filter by lottery authority, or `false` for all.
+     * @param lotteryId - Filter by lottery ID, or `false` for all.
+     * @param group     - If `true`, group results by booster wallet address.
+     * @param limit     - Maximum number of recent transactions to scan (max 1000).
+     */
+    GetBoosters(
+      authority?: HasPublicKey | false,
+      lotteryId?: number | false,
+      group?: false,
+      limit?: number
+    ): Promise<BoosterRecord[]>;
+    GetBoosters(
+      authority: HasPublicKey | false,
+      lotteryId: number | false,
+      group: true,
+      limit?: number
+    ): Promise<GroupedBoostersResult>;
+    GetBoosters(
+      authority?: HasPublicKey | false,
+      lotteryId?: number | false,
+      group?: boolean,
+      limit?: number
+    ): Promise<BoosterRecord[] | GroupedBoostersResult>;
+
     /** Derive the lottery PDA. */
     DeriveLotteryPDA(
       authority: PublicKey,
@@ -367,49 +411,5 @@ declare module "solotto" {
       lotteryId: number,
       encoded?: boolean
     ): Promise<LotteryState | string | TxResult | undefined>;
-
-    /**
-     * Boost a lottery's prize pool by transferring SOL from any wallet.
-     * @param authority - The lottery authority (only `publicKey` needed).
-     * @param lotteryId - Lottery numeric identifier.
-     * @param booster   - The keypair of the wallet sending the boost.
-     * @param amount    - Amount of SOL to boost (e.g. `0.5` for 0.5 SOL).
-     * @param message   - Optional memo string attached to the transaction.
-     * @param encoded   - If `true`, return a base64-encoded transaction.
-     */
-    Boost(
-      authority: HasPublicKey,
-      lotteryId: number,
-      booster: Keypair,
-      amount: number,
-      message?: string | false,
-      encoded?: boolean
-    ): Promise<string | TxResult | undefined>;
-
-    /**
-     * Retrieve boost history from on-chain transaction memos.
-     * @param authority - Filter by lottery authority, or `false` for all.
-     * @param lotteryId - Filter by lottery ID, or `false` for all.
-     * @param group     - If `true`, group results by booster wallet address.
-     * @param limit     - Maximum number of recent transactions to scan (max 1000).
-     */
-    GetBoosters(
-      authority?: HasPublicKey | false,
-      lotteryId?: number | false,
-      group?: false,
-      limit?: number
-    ): Promise<BoosterRecord[]>;
-    GetBoosters(
-      authority: HasPublicKey | false,
-      lotteryId: number | false,
-      group: true,
-      limit?: number
-    ): Promise<GroupedBoostersResult>;
-    GetBoosters(
-      authority?: HasPublicKey | false,
-      lotteryId?: number | false,
-      group?: boolean,
-      limit?: number
-    ): Promise<BoosterRecord[] | GroupedBoostersResult>;
   }
 }

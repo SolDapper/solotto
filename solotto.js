@@ -574,6 +574,149 @@ class Lottery extends EventEmitter {
       return PublicKey.findProgramAddressSync([Buffer.from("prize-pool")], this.program);
     }
 
+    /**
+     * @param {Keypair} authority - Keypair
+     * @param {String} lotteryId - The lottery id
+     * @param {Keypair} booster - The booster's keypair
+     * @param {Number} amount - The amount of sol to boost
+     * @param {Boolean} encoded - true returns encoded transaction
+    */
+    async Boost(authority, lotteryId, booster, amount, message = false, encoded = false) {
+        try{
+            async function boostData(lotId, amount) {
+                const lamports = parseInt(amount * LAMPORTS_PER_SOL);
+                const buffer = Buffer.alloc(17); // 1 byte discriminator + 1 bytes price + 8 bytes id
+                buffer.writeUInt8(INSTRUCTIONS.BOOST_LOTTERY, 0); // boostLottery discriminator
+                buffer.writeBigUInt64LE(BigInt(lotId), 1);
+                buffer.writeBigUInt64LE(BigInt(lamports), 9);
+                return buffer;
+            }
+            if(message){message = ":booster:"+message;}
+            const network = new LotteryNetwork(this.connection);
+            const [lotteryPDA] = await this.DeriveLotteryPDA(authority.publicKey, lotteryId);
+            const LOTTO = await this.GetLottery(authority, lotteryId);
+            const keys = [
+                { pubkey: booster.publicKey, isSigner: true, isWritable: true },
+                { pubkey: lotteryPDA, isSigner: false, isWritable: true },
+                { pubkey: new PublicKey(LOTTO.prizePoolAddress), isSigner: false, isWritable: true },
+                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+            ];
+            const ix = new TransactionInstruction(
+                {programId: this.program, keys, data: await boostData(lotteryId, amount)}
+            );
+            const _tx_ = {};
+            _tx_.account = booster.publicKey.toString();   // string : required
+            _tx_.instructions = [ix];                      // array  : required
+            _tx_.signers = false;                          // array  : default false
+            _tx_.table = false;                            // array  : default false
+            _tx_.tolerance = 1.2;                          // int    : default 1.1    
+            _tx_.compute = true;                           // bool   : default true
+            _tx_.fees = true;                              // bool   : default true
+            _tx_.priority = "Low";                         // string : default Low
+            _tx_.memo = message;
+            if(encoded){
+                _tx_.serialize = true;                        
+                _tx_.encode = true;  
+            }
+            else{
+                _tx_.serialize = false;                        
+                _tx_.encode = false;  
+            }
+            const tx = await network.Tx(_tx_); 
+            if(tx.logs && tx.logs.includes("Program log: Lottery draw has been initiated, cannot boost prize pool")){
+                return "Draw initiated, cannot boost this prize pool";
+            }
+            if(tx.status !== "ok"){return tx;}
+            if(booster.secretKey && !encoded){
+                tx.transaction.sign([booster]);
+                const sig = await network.Send(tx.transaction);
+                console.log("Signature:", sig);
+                const status = await network.Status(sig);
+                if(status == "finalized"){
+                    return "boosted";
+                }
+                else{return status;}
+            }
+            else{return tx;}           
+        }
+        catch (error) {
+            console.log(error);
+        }
+    }
+
+    /**
+     * @param {Keypair} authority - Keypair
+     * @param {Number} lotteryId - The lottery id
+     * @param {Boolean} group - if true, groups results by booster wallet address
+     * @param {Number} limit - the results to request (max 1000)
+     * @returns {Array|Object} - Array of booster objects or grouped booster objects if group=true
+    */
+    async GetBoosters(authority=false, lotteryId=false, group=false, limit=1000) {
+        try{
+            const initial = [];
+            const result = [];
+            const signatures = await this.connection.getSignaturesForAddress(this.program, {limit: limit,});
+            for await (const row of signatures) {
+                if(!row.err && row.confirmationStatus=="finalized" && row.memo && row.memo.includes(":booster:")){
+                    initial.push(row);
+                }
+            }
+            for await (const init of initial) {
+                const tx = await this.connection.getTransaction(init.signature,{maxSupportedTransactionVersion:0});
+                const logs = tx.meta.logMessages;
+                const item = {};
+                let isBooster = false;
+                for await (const log of logs){if(log.includes("Program log: Boosted by")){isBooster=true;}}
+                if(!isBooster){continue;}
+                for await (const log of logs) {
+                    if(log.includes("Program log: Boosted by ")){
+                        item.booster = log.replace("Program log: Boosted by ","").trim();
+                    }
+                    else if(log.includes("Program log: Lottery ID ")){
+                        item.lotteryId = Number(log.replace("Program log: Lottery ID ","").trim());
+                    }
+                    else if(log.includes("Program log: Boost amount: ")){
+                        const data = log.replace("Program log: Boost amount: ","").trim();
+                        item.amount = parseFloat(data.split(" SOL ")[0]);
+                    }
+                    else if(log.includes("Program log: Memo ")){
+                        const parts = log.split(":booster:");
+                        item.message = parts[1].slice(0, -1).trim();
+                    }
+                    else if(log.includes("Program log: Authority ")){
+                        item.authority = log.replace("Program log: Authority ","").trim();
+                    }
+                }
+                // Apply filters with safety checks
+                const matchesAuthority = authority ? (item.authority && authority.publicKey.toString() === item.authority) : true;
+                const matchesLotteryId = lotteryId ? (item.lotteryId !== undefined && lotteryId.toString() === item.lotteryId.toString()) : true;
+                if(matchesAuthority && matchesLotteryId && item.amount >= 0.0001){
+                    item.signature = init.signature;
+                    result.push(item);
+                }
+            }
+            // Group by booster if requested
+            if (group) {
+                const grouped = {};
+                result.forEach(item => {
+                    if (!grouped[item.booster]) {
+                        grouped[item.booster] = {
+                            boost: [],
+                            total: 0,
+                            count: 0
+                        };
+                    }
+                    grouped[item.booster].boost.push(item);
+                    grouped[item.booster].total += item.amount;
+                    grouped[item.booster].count = grouped[item.booster].boost.length;
+                });
+                return grouped;
+            }
+            return result;
+        }
+        catch (error) {return error;}
+    }
+
 }
 
 class LotteryManager {
@@ -821,150 +964,6 @@ class LotteryManager {
         catch (error) {
             console.log(error);
         }
-    }
-
-    /**
-     * @param {Keypair} authority - Keypair
-     * @param {String} lotteryId - The lottery id
-     * @param {Keypair} booster - The booster's keypair
-     * @param {Number} amount - The amount of sol to boost
-     * @param {Boolean} encoded - true returns encoded transaction
-    */
-    async Boost(authority, lotteryId, booster, amount, message = false, encoded = false) {
-        try{
-            async function boostData(lotId, amount) {
-                const lamports = parseInt(amount * LAMPORTS_PER_SOL);
-                const buffer = Buffer.alloc(17); // 1 byte discriminator + 1 bytes price + 8 bytes id
-                buffer.writeUInt8(INSTRUCTIONS.BOOST_LOTTERY, 0); // boostLottery discriminator
-                buffer.writeBigUInt64LE(BigInt(lotId), 1);
-                buffer.writeBigUInt64LE(BigInt(lamports), 9);
-                return buffer;
-            }
-            if(message){message = ":booster:"+message;}
-            const lottery = new Lottery(this.connection, false, this.program);
-            const network = new LotteryNetwork(this.connection);
-            const [lotteryPDA] = await lottery.DeriveLotteryPDA(authority.publicKey, lotteryId);
-            const LOTTO = await lottery.GetLottery(authority, lotteryId);
-            const keys = [
-                { pubkey: booster.publicKey, isSigner: true, isWritable: true },
-                { pubkey: lotteryPDA, isSigner: false, isWritable: true },
-                { pubkey: new PublicKey(LOTTO.prizePoolAddress), isSigner: false, isWritable: true },
-                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-            ];
-            const ix = new TransactionInstruction(
-                {programId: this.program, keys, data: await boostData(lotteryId, amount)}
-            );
-            const _tx_ = {};
-            _tx_.account = booster.publicKey.toString();   // string : required
-            _tx_.instructions = [ix];                      // array  : required
-            _tx_.signers = false;                          // array  : default false
-            _tx_.table = false;                            // array  : default false
-            _tx_.tolerance = 1.2;                          // int    : default 1.1    
-            _tx_.compute = true;                           // bool   : default true
-            _tx_.fees = true;                              // bool   : default true
-            _tx_.priority = "Low";                         // string : default Low
-            _tx_.memo = message;
-            if(encoded){
-                _tx_.serialize = true;                        
-                _tx_.encode = true;  
-            }
-            else{
-                _tx_.serialize = false;                        
-                _tx_.encode = false;  
-            }
-            const tx = await network.Tx(_tx_); 
-            if(tx.logs && tx.logs.includes("Program log: Lottery draw has been initiated, cannot boost prize pool")){
-                return "Draw initiated, cannot boost this prize pool";
-            }
-            if(tx.status !== "ok"){return tx;}
-            if(booster.secretKey && !encoded){
-                tx.transaction.sign([booster]);
-                const sig = await network.Send(tx.transaction);
-                console.log("Signature:", sig);
-                const status = await network.Status(sig);
-                if(status == "finalized"){
-                    return "boosted";
-                }
-                else{return status;}
-            }
-            else{return tx;}           
-        }
-        catch (error) {
-            console.log(error);
-        }
-    }
-
-    /**
-     * @param {Keypair} authority - Keypair
-     * @param {Number} lotteryId - The lottery id
-     * @param {Boolean} group - if true, groups results by booster wallet address
-     * @param {Number} limit - the results to request (max 1000)
-     * @returns {Array|Object} - Array of booster objects or grouped booster objects if group=true
-    */
-    async GetBoosters(authority=false, lotteryId=false, group=false, limit=1000) {
-        try{
-            const initial = [];
-            const result = [];
-            const signatures = await this.connection.getSignaturesForAddress(this.program, {limit: limit,});
-            for await (const row of signatures) {
-                if(!row.err && row.confirmationStatus=="finalized" && row.memo && row.memo.includes(":booster:")){
-                    initial.push(row);
-                }
-            }
-            for await (const init of initial) {
-                const tx = await this.connection.getTransaction(init.signature,{maxSupportedTransactionVersion:0});
-                const logs = tx.meta.logMessages;
-                const item = {};
-                let isBooster = false;
-                for await (const log of logs){if(log.includes("Program log: Boosted by")){isBooster=true;}}
-                if(!isBooster){continue;}
-                for await (const log of logs) {
-                    if(log.includes("Program log: Boosted by ")){
-                        item.booster = log.replace("Program log: Boosted by ","").trim();
-                    }
-                    else if(log.includes("Program log: Lottery ID ")){
-                        item.lotteryId = Number(log.replace("Program log: Lottery ID ","").trim());
-                    }
-                    else if(log.includes("Program log: Boost amount: ")){
-                        const data = log.replace("Program log: Boost amount: ","").trim();
-                        item.amount = parseFloat(data.split(" SOL ")[0]);
-                    }
-                    else if(log.includes("Program log: Memo ")){
-                        const parts = log.split(":booster:");
-                        item.message = parts[1].slice(0, -1).trim();
-                    }
-                    else if(log.includes("Program log: Authority ")){
-                        item.authority = log.replace("Program log: Authority ","").trim();
-                    }
-                }
-                // Apply filters with safety checks
-                const matchesAuthority = authority ? (item.authority && authority.publicKey.toString() === item.authority) : true;
-                const matchesLotteryId = lotteryId ? (item.lotteryId !== undefined && lotteryId.toString() === item.lotteryId.toString()) : true;
-                if(matchesAuthority && matchesLotteryId && item.amount >= 0.0001){
-                    item.signature = init.signature;
-                    result.push(item);
-                }
-            }
-            // Group by booster if requested
-            if (group) {
-                const grouped = {};
-                result.forEach(item => {
-                    if (!grouped[item.booster]) {
-                        grouped[item.booster] = {
-                            boost: [],
-                            total: 0,
-                            count: 0
-                        };
-                    }
-                    grouped[item.booster].boost.push(item);
-                    grouped[item.booster].total += item.amount;
-                    grouped[item.booster].count = grouped[item.booster].boost.length;
-                });
-                return grouped;
-            }
-            return result;
-        }
-        catch (error) {return error;}
     }
 
 }
