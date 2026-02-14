@@ -337,5 +337,23 @@ declare module "solotto" {
       lotteryId: number,
       encoded?: boolean
     ): Promise<LotteryState | string | TxResult | undefined>;
+
+    /**
+     * Boost a lottery's prize pool by transferring SOL from any wallet.
+     * @param authority - The lottery authority (only `publicKey` needed).
+     * @param lotteryId - Lottery numeric identifier.
+     * @param booster   - The keypair of the wallet sending the boost.
+     * @param amount    - Amount of SOL to boost (e.g. `0.5` for 0.5 SOL).
+     * @param message   - Optional memo string attached to the transaction.
+     * @param encoded   - If `true`, return a base64-encoded transaction.
+     */
+    Boost(
+      authority: HasPublicKey,
+      lotteryId: number,
+      booster: Keypair,
+      amount: number,
+      message?: string | false,
+      encoded?: boolean
+    ): Promise<string | TxResult | undefined>;
   }
 }

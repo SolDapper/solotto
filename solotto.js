@@ -1,10 +1,10 @@
-import {Connection, PublicKey, TransactionMessage, TransactionInstruction, VersionedTransaction, ComputeBudgetProgram, SystemProgram, Keypair, SYSVAR_SLOT_HASHES_PUBKEY, SYSVAR_CLOCK_PUBKEY, SYSVAR_RECENT_BLOCKHASHES_PUBKEY} from '@solana/web3.js';
+import {Connection, PublicKey, TransactionMessage, TransactionInstruction, VersionedTransaction, ComputeBudgetProgram, SystemProgram, Keypair, SYSVAR_SLOT_HASHES_PUBKEY, LAMPORTS_PER_SOL} from '@solana/web3.js';
 import bs58 from 'bs58';
 import BN from 'bn.js';
 import {createMemoInstruction} from '@solana/spl-memo';
 import BufferLayout from "buffer-layout";
 const publicKey=(property="publicKey")=>{return BufferLayout.blob(32,property);};const uint64=(property="uint64")=>{return BufferLayout.blob(8,property);}
-import {createSolanaRpcSubscriptions} from "@solana/kit";
+import {createSolanaRpcSubscriptions, SOLANA_ERROR__ADDRESSES__FAILED_TO_FIND_VIABLE_PDA_BUMP_SEED} from "@solana/kit";
 import {EventEmitter} from 'events';
 
 const INSTRUCTIONS = {
@@ -14,6 +14,7 @@ const INSTRUCTIONS = {
     CLAIM_PRIZE: 3,
     LOCK_LOTTERY: 4,
     RELEASE_EXPIRED: 5,
+    BOOST_LOTTERY: 6,
 };
 
 class LotteryNetwork {
@@ -321,6 +322,9 @@ class Lottery extends EventEmitter {
             _tx_.encode = false;  
         }
         const tx = await network.Tx(_tx_);
+        if(tx.logs && tx.logs.includes("Program log: Lottery is not active, no more tickets can be sold")){
+            return "Lottery is not active, no tickets can be sold";
+        }
         if(buyer.secretKey && !encoded){
             tx.transaction.sign([buyer]);
             const sig = await network.Send(tx.transaction);
@@ -793,7 +797,11 @@ class LotteryManager {
                 _tx_.serialize = false;                        
                 _tx_.encode = false;  
             }
-            const tx = await network.Tx(_tx_);             // build the tx
+            const tx = await network.Tx(_tx_);  
+            // 
+            if(tx.logs && tx.logs.includes("Program log: Prize has already been claimed")){
+                return "Prize has already been claimed";
+            }
             if(tx.status !== "ok"){return tx;}
             if(authority.secretKey && !encoded){
                 tx.transaction.sign([authority]);
@@ -802,6 +810,76 @@ class LotteryManager {
                 const status = await network.Status(sig);
                 if(status == "finalized"){
                     return await lottery.GetLottery({publicKey: authority.publicKey}, lotteryId, false);
+                }
+                else{return status;}
+            }
+            else{return tx;}           
+        }
+        catch (error) {
+            console.log(error);
+        }
+    }
+
+    /**
+     * @param {Keypair} authority - Keypair
+     * @param {String} lotteryId - The lottery id
+     * @param {Keypair} booster - The booster's keypair
+     * @param {Number} amount - The amount of sol to boost
+     * @param {Boolean} encoded - true returns encoded transaction
+    */
+    async Boost(authority, lotteryId, booster, amount, message = false, encoded = false) {
+        try{
+            async function boostData(lotId, amount) {
+                const lamports = parseInt(amount * LAMPORTS_PER_SOL);
+                const buffer = Buffer.alloc(17); // 1 byte discriminator + 1 bytes price + 8 bytes id
+                buffer.writeUInt8(INSTRUCTIONS.BOOST_LOTTERY, 0); // boostLottery discriminator
+                buffer.writeBigUInt64LE(BigInt(lotId), 1);
+                buffer.writeBigUInt64LE(BigInt(lamports), 9);
+                return buffer;
+            }
+            const lottery = new Lottery(this.connection, false, this.program);
+            const network = new LotteryNetwork(this.connection);
+            const [lotteryPDA] = await lottery.DeriveLotteryPDA(authority.publicKey, lotteryId);
+            const LOTTO = await lottery.GetLottery(authority, lotteryId);
+            const keys = [
+                { pubkey: booster.publicKey, isSigner: true, isWritable: true },
+                { pubkey: lotteryPDA, isSigner: false, isWritable: true },
+                { pubkey: new PublicKey(LOTTO.prizePoolAddress), isSigner: false, isWritable: true },
+                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+            ];
+            const ix = new TransactionInstruction(
+                {programId: this.program, keys, data: await boostData(lotteryId, amount)}
+            );
+            const _tx_ = {};
+            _tx_.account = booster.publicKey.toString();   // string : required
+            _tx_.instructions = [ix];                      // array  : required
+            _tx_.signers = false;                          // array  : default false
+            _tx_.table = false;                            // array  : default false
+            _tx_.tolerance = 1.2;                          // int    : default 1.1    
+            _tx_.compute = true;                           // bool   : default true
+            _tx_.fees = true;                              // bool   : default true
+            _tx_.priority = "Low";                         // string : default Low
+            _tx_.memo = message;
+            if(encoded){
+                _tx_.serialize = true;                        
+                _tx_.encode = true;  
+            }
+            else{
+                _tx_.serialize = false;                        
+                _tx_.encode = false;  
+            }
+            const tx = await network.Tx(_tx_); 
+            if(tx.logs && tx.logs.includes("Program log: Lottery draw has been initiated, cannot boost prize pool")){
+                return "Draw initiated, cannot boost this prize pool";
+            }
+            if(tx.status !== "ok"){return tx;}
+            if(booster.secretKey && !encoded){
+                tx.transaction.sign([booster]);
+                const sig = await network.Send(tx.transaction);
+                console.log("Signature:", sig);
+                const status = await network.Status(sig);
+                if(status == "finalized"){
+                    return "boosted";
                 }
                 else{return status;}
             }

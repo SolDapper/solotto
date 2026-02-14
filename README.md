@@ -19,6 +19,7 @@ A JavaScript SDK for interacting with the Solotto on-chain lottery program on So
     - [RandomDraw](#randomdraw)
     - [LockLottery](#locklottery)
     - [ClaimExpired](#claimexpired)
+    - [Boost](#boost)
   - [Lottery](#lottery-api)
     - [BuyTickets](#buytickets)
     - [ClaimTicket](#claimticket)
@@ -213,7 +214,32 @@ const result = await manager.ClaimExpired(authority, lotteryId, encoded);
 | `lotteryId` | `String` | — | The lottery ID. |
 | `encoded` | `Boolean` | `false` | If `true`, returns encoded transaction. |
 
-**Returns:** Updated lottery state object on finalization, or the transaction object when encoded.
+**Returns:** Updated lottery state object on finalization, `"Prize has already been claimed"` if the prize was already claimed, or the transaction object when encoded.
+
+---
+
+#### Boost
+
+Boosts a lottery's prize pool by transferring SOL from any wallet. Can be called by anyone, not just the authority. Optionally attaches a memo message to the transaction.
+
+```js
+// Boost lottery #1 with 0.5 SOL
+const result = await manager.Boost(authority, lotteryId, booster, 0.5);
+
+// Boost with a memo message
+const result = await manager.Boost(authority, lotteryId, booster, 1.0, "Good luck everyone!");
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `authority` | `{publicKey}` | — | The lottery authority (only `publicKey` is needed). |
+| `lotteryId` | `String` | — | The lottery ID. |
+| `booster` | `Keypair` | — | The keypair of the wallet sending the boost. |
+| `amount` | `Number` | — | Amount of SOL to boost (e.g. `0.5` for 0.5 SOL). |
+| `message` | `String \| false` | `false` | Optional memo string attached to the transaction. |
+| `encoded` | `Boolean` | `false` | If `true`, returns encoded transaction. |
+
+**Returns:** `"boosted"` on success, `"Draw initiated, cannot boost this prize pool"` if the draw has already started, or the transaction object when encoded.
 
 ---
 
@@ -237,7 +263,7 @@ const result = await lottery.BuyTickets(buyer, authority, lotteryId, amount, enc
 | `amount` | `Number` | `1` | Number of tickets to purchase (1–4). |
 | `encoded` | `Boolean` | `false` | If `true`, returns encoded transaction. |
 
-**Returns:** `"finalized"` on success, or the transaction object when encoded.
+**Returns:** `"finalized"` on success, `"Lottery is not active, no tickets can be sold"` if the lottery is inactive, or the transaction object when encoded.
 
 **Example:**
 
