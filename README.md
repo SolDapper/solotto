@@ -20,6 +20,7 @@ A JavaScript SDK for interacting with the Solotto on-chain lottery program on So
     - [LockLottery](#locklottery)
     - [ClaimExpired](#claimexpired)
     - [Boost](#boost)
+    - [GetBoosters](#getboosters)
   - [Lottery](#lottery-api)
     - [BuyTickets](#buytickets)
     - [ClaimTicket](#claimticket)
@@ -241,6 +242,63 @@ const result = await manager.Boost(authority, lotteryId, booster, 1.0, "Good luc
 
 **Returns:** `"boosted"` on success, `"Draw initiated, cannot boost this prize pool"` if the draw has already started, or the transaction object when encoded.
 
+> **Note:** When a `message` is provided, the SDK automatically prepends a structured memo in the format `:booster:authority,lotteryId,booster,amount:booster:` before your message. This structured prefix is used by `GetBoosters` to index boost history from on-chain transaction memos.
+
+---
+
+#### GetBoosters
+
+Retrieves boost history by scanning on-chain transaction memos. Can filter by authority, lottery ID, or both, and optionally group results by booster wallet address.
+
+```js
+// Get all boosters for a specific lottery
+const boosters = await manager.GetBoosters(authority, lotteryId);
+
+// Get all boosters across all lotteries (up to 500 transactions)
+const allBoosters = await manager.GetBoosters(false, false, false, 500);
+
+// Get boosters grouped by wallet address
+const grouped = await manager.GetBoosters(authority, lotteryId, true);
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `authority` | `{publicKey} \| false` | `false` | Filter by lottery authority. Pass `false` to include all authorities. |
+| `lotteryId` | `Number \| false` | `false` | Filter by lottery ID. Pass `false` to include all lotteries. |
+| `group` | `Boolean` | `false` | If `true`, groups results by booster wallet address. |
+| `limit` | `Number` | `1000` | Maximum number of recent transactions to scan (max 1000). |
+
+**Returns (ungrouped):** An array of booster objects:
+
+```js
+[
+  {
+    lotteryId: 1,
+    authority: "Pubkey...",
+    booster: "Pubkey...",
+    amount: 0.5,
+    signature: "TxSignature...",
+  },
+  // ...
+]
+```
+
+**Returns (grouped, `group = true`):** An object keyed by booster wallet address:
+
+```js
+{
+  "BoosterPubkey...": {
+    boost: [
+      { lotteryId: 1, authority: "Pubkey...", booster: "Pubkey...", amount: 0.5, signature: "TxSig..." },
+      // ...
+    ],
+    total: 1.5,    // Sum of all boost amounts in SOL
+    count: 3,      // Number of boosts
+  },
+  // ...
+}
+```
+
 ---
 
 ### Lottery API
@@ -300,7 +358,7 @@ const result = await lottery.ClaimTicket(authority, lotteryId, winner, encoded);
 | `winner` | `Keypair` | — | The keypair of the winning ticket's owner. |
 | `encoded` | `Boolean` | `false` | If `true`, returns encoded transaction. |
 
-**Returns:** `"finalized"` on success, or the transaction object when encoded.
+**Returns:** `"finalized"` on success, the simulation log array (`string[]`) if the transaction fails simulation, or the transaction object when encoded.
 
 ---
 
@@ -518,7 +576,7 @@ const status = await network.Status(signature, maxRetries, intervalSeconds);
 
 ## Transaction Modes
 
-Every write method (`Initialize`, `RandomDraw`, `LockLottery`, `BuyTickets`, `ClaimTicket`) supports two modes controlled by the `encoded` parameter:
+Every write method (`Initialize`, `RandomDraw`, `LockLottery`, `ClaimExpired`, `Boost`, `BuyTickets`, `ClaimTicket`) supports two modes controlled by the `encoded` parameter:
 
 **Direct Mode** (`encoded = false`, default) — The SDK signs, sends, and confirms the transaction. Requires the keypair to have a `secretKey`. Returns the final status or lottery state.
 

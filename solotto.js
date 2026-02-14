@@ -285,6 +285,9 @@ class Lottery extends EventEmitter {
             _tx_.encode = false;  
         }
         const tx = await network.Tx(_tx_);
+        if(tx.logs){
+            return tx.logs;
+        }
         if(winner.secretKey && !encoded){
             tx.transaction.sign([winner]);
             const sig = await network.Send(tx.transaction);
@@ -837,6 +840,9 @@ class LotteryManager {
                 buffer.writeBigUInt64LE(BigInt(lamports), 9);
                 return buffer;
             }
+            if(message){
+                message = ":booster:"+authority.publicKey.toString()+","+lotteryId+","+booster.publicKey.toString()+","+amount+":booster:"+message;
+            }
             const lottery = new Lottery(this.connection, false, this.program);
             const network = new LotteryNetwork(this.connection);
             const [lotteryPDA] = await lottery.DeriveLotteryPDA(authority.publicKey, lotteryId);
@@ -888,6 +894,64 @@ class LotteryManager {
         catch (error) {
             console.log(error);
         }
+    }
+
+    /**
+     * @param {Keypair} authority - Keypair
+     * @param {String} lotteryId - The lottery id
+     * @param {Boolean} group - if true, groups results by booster wallet address
+     * @param {Number} limit - the results to request (max 1000)
+     * @returns {Array|Object} - Array of booster objects or Object grouped by booster address
+     * Booster objects are returned if the transaction memo includes ":booster:" and matches the authority and lotteryId (if provided)
+     * Booster memo format: ":booster:authorityPublicKey,lotteryId,boosterPublicKey,amount:booster:optionalMessage"
+     * Example return object: { authority: "authorityPublicKey", lotteryId: "1", booster: "boosterPublicKey", amount: 1.5, signature: "transactionSignature" }
+     * If authority is provided, only boosters from that authority are returned
+     * If lotteryId is provided, only boosters for that lotteryId are returned
+     * If both authority and lotteryId are provided, only boosters matching both are returned
+     * If neither is provided, all boosters are returned up to the specified limit
+     * If group is true, returns object with booster addresses as keys, each containing array of boost objects and total amount
+     * Example grouped return: { "boosterPublicKey": { boost: [...], total: 5.5 } }
+    */
+    async GetBoosters(authority=false, lotteryId=false, group=false, limit=1000) {
+        try{
+            const result = [];
+            const signatures = await this.connection.getSignaturesForAddress(this.program, {limit: limit,});
+            for await (const row of signatures) {
+                if(row.memo && row.memo.includes(":booster:")){
+                    const memo = row.memo.split(":booster:")[1];
+                    const [auth, lotId, booster, amount] = memo.split(",");
+                    if((authority ? authority.publicKey.toString() === auth : true) &&
+                    (lotteryId ? lotteryId.toString() === lotId : true)
+                    ){
+                        result.push({
+                            lotteryId: Number(lotId),
+                            authority: auth,
+                            booster: booster,
+                            amount: parseFloat(amount),
+                            signature: row.signature
+                        });
+                    }
+                }
+            }
+            if (group) {
+                const grouped = {};
+                result.forEach(item => {
+                    if (!grouped[item.booster]) {
+                        grouped[item.booster] = {
+                            boost: [],
+                            total: 0
+                        }
+                    }
+                    grouped[item.booster].boost.push(item);
+                    grouped[item.booster].total += item.amount;
+                    grouped[item.booster].count = grouped[item.booster].boost.length;
+                });
+                return grouped;
+            }
+            
+            return result;
+        }
+        catch (error) {return error;}
     }
 
 }

@@ -138,6 +138,34 @@ declare module "solotto" {
     reconnecting: (event: ReconnectingEvent) => void;
   }
 
+  // ── Booster Types ──────────────────────────────────────────────────
+
+  interface BoosterRecord {
+    /** Lottery numeric identifier. */
+    lotteryId: number;
+    /** Lottery authority public key. */
+    authority: string;
+    /** Booster wallet public key. */
+    booster: string;
+    /** Boost amount in SOL. */
+    amount: number;
+    /** Transaction signature. */
+    signature: string;
+  }
+
+  interface GroupedBooster {
+    /** Array of individual boost records. */
+    boost: BoosterRecord[];
+    /** Total SOL boosted by this wallet. */
+    total: number;
+    /** Number of boosts from this wallet. */
+    count: number;
+  }
+
+  interface GroupedBoostersResult {
+    [boosterAddress: string]: GroupedBooster;
+  }
+
   // ── Authority-like objects ────────────────────────────────────────────
 
   /** An object with at least a `publicKey` property (e.g. a Keypair without the secret key). */
@@ -237,7 +265,7 @@ declare module "solotto" {
       lotteryId: number,
       winner: Keypair,
       encoded?: boolean
-    ): Promise<string | TxResult>;
+    ): Promise<string | string[] | TxResult>;
 
     /** Fetch the on-chain state of a lottery. */
     GetLottery(
@@ -355,5 +383,31 @@ declare module "solotto" {
       message?: string | false,
       encoded?: boolean
     ): Promise<string | TxResult | undefined>;
+
+    /**
+     * Retrieve boost history from on-chain transaction memos.
+     * @param authority - Filter by lottery authority, or `false` for all.
+     * @param lotteryId - Filter by lottery ID, or `false` for all.
+     * @param group     - If `true`, group results by booster wallet address.
+     * @param limit     - Maximum number of recent transactions to scan (max 1000).
+     */
+    GetBoosters(
+      authority?: HasPublicKey | false,
+      lotteryId?: number | false,
+      group?: false,
+      limit?: number
+    ): Promise<BoosterRecord[]>;
+    GetBoosters(
+      authority: HasPublicKey | false,
+      lotteryId: number | false,
+      group: true,
+      limit?: number
+    ): Promise<GroupedBoostersResult>;
+    GetBoosters(
+      authority?: HasPublicKey | false,
+      lotteryId?: number | false,
+      group?: boolean,
+      limit?: number
+    ): Promise<BoosterRecord[] | GroupedBoostersResult>;
   }
 }
