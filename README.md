@@ -609,4 +609,4 @@ const result = await manager.Initialize(authority, 100000000, 1, true);
 
 ## License
 
-See [LICENSE](./LICENSE) for details.
+See [LICENSE](./LICENSE.md) for details.
