@@ -225,6 +225,13 @@ declare module "solotto" {
       blockhash: string,
       table?: any[] | false
     ): Promise<number>;
+
+    /**
+     * Resolve a wallet address to its primary .sol domain name via Bonfida SNS.
+     * @param wallet - Wallet public key as a base-58 string.
+     * @returns The primary .sol domain (e.g. "alice.sol"), or the original address if not found.
+     */
+    Sns(wallet: string): Promise<string>;
   }
 
   /**

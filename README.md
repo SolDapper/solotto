@@ -32,6 +32,7 @@ A JavaScript SDK for interacting with the Solotto on-chain lottery program on So
     - [Tx](#tx)
     - [Send](#send)
     - [Status](#status)
+    - [Sns](#sns)
 - [Transaction Modes](#transaction-modes)
 - [Dependencies](#dependencies)
 - [License](#license)
@@ -74,7 +75,7 @@ Solotto is organized into three exported classes, each handling a different laye
 |---|---|
 | **`LotteryManager`** | Admin operations — initialize lotteries, trigger draws, lock/unlock ticket sales, reclaim expired prizes. |
 | **`Lottery`** | Player & read operations — buy tickets, claim prizes, boost prize pools, query lottery/ticket/booster state, watch draws via WebSocket. |
-| **`LotteryNetwork`** | Low-level transaction utilities — build, simulate, send, and confirm transactions with automatic compute budget and priority fee estimation. |
+| **`LotteryNetwork`** | Low-level transaction utilities — build, simulate, send, and confirm transactions with automatic compute budget and priority fee estimation. Also provides SNS domain resolution. |
 
 ---
 
@@ -601,6 +602,23 @@ const status = await network.Status(signature, maxRetries, intervalSeconds);
 
 ---
 
+#### Sns
+
+Resolves a Solana wallet address to its primary `.sol` domain name using the [Bonfida SNS](https://sns.id/) (Solana Name Service). Returns the domain if found, or the original wallet address as a fallback.
+
+```js
+const name = await network.Sns("YourWalletPubkey...");
+// → "alice.sol" or "YourWalletPubkey..." if no domain is set
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `wallet` | `String` | — | The wallet public key as a base-58 string. |
+
+**Returns:** The primary `.sol` domain (e.g. `"alice.sol"`), or the original wallet address string if no domain is found or an error occurs.
+
+---
+
 ## Transaction Modes
 
 Every write method (`Initialize`, `RandomDraw`, `LockLottery`, `ClaimExpired`, `Boost`, `BuyTickets`, `ClaimTicket`) supports two modes controlled by the `encoded` parameter:
@@ -627,6 +645,7 @@ const result = await manager.Initialize(authority, 100000000, 1, true);
 - `@solana/web3.js` — Solana JavaScript SDK
 - `@solana/spl-memo` — Memo program instruction helper
 - `@solana/kit` — WebSocket subscriptions (for `WatchDraw`)
+- `@bonfida/spl-name-service` — Solana Name Service domain resolution (for `Sns`)
 - `bn.js` — Big number library
 - `bs58` — Base58 encoding/decoding
 - `buffer-layout` — Buffer struct layout parsing
