@@ -1,4 +1,5 @@
 import {Connection, PublicKey, TransactionMessage, TransactionInstruction, VersionedTransaction, ComputeBudgetProgram, SystemProgram, Keypair, SYSVAR_SLOT_HASHES_PUBKEY, LAMPORTS_PER_SOL} from '@solana/web3.js';
+import { getMultiplePrimaryDomains } from '@bonfida/spl-name-service';
 import bs58 from 'bs58';
 import BN from 'bn.js';
 import {createMemoInstruction} from '@solana/spl-memo';
@@ -161,6 +162,17 @@ class LotteryNetwork {
         if(data == 1){data = 100000;}
         if(data < 10000){data = 10000;}
         return data;
+    }
+    async Sns(wallet){
+        try{
+            const primaryDomains = await getMultiplePrimaryDomains(this.connection, [new PublicKey(wallet)]);
+            if(primaryDomains && primaryDomains.length > 0){
+                const primaryDomain = primaryDomains[0];
+                if(primaryDomain){return primaryDomain+".sol";}else{return wallet;}
+            } 
+            else{return wallet;}
+        }
+        catch(err){return wallet;}
     }
 }
 
