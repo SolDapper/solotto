@@ -295,7 +295,7 @@ const result = await lottery.Boost(authority, lotteryId, booster, 1.0, "Good luc
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `authority` | `{publicKey}` | — | The lottery authority (only `publicKey` is needed). |
-| `lotteryId` | `String` | — | The lottery ID. |
+| `lotteryId` | `Number` | — | The lottery ID. |
 | `booster` | `Keypair` | — | The keypair of the wallet sending the boost. |
 | `amount` | `Number` | — | Amount of SOL to boost (e.g. `0.5` for 0.5 SOL). |
 | `message` | `String \| false` | `false` | Optional memo string attached to the transaction. |
