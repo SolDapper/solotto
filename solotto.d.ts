@@ -292,6 +292,17 @@ declare module "solotto" {
       fees?: boolean
     ): Promise<LotteryState>;
 
+    /**
+     * Fetch all lottery accounts, optionally filtered by authority.
+     * @param authority - Filter by lottery authority, or `false` for all.
+     * @param fees      - If `true`, deduct 10% from prize pool balance.
+     * @returns Array of lottery states sorted descending by lotteryId.
+     */
+    GetLotteries(
+      authority?: HasPublicKey | false,
+      fees?: boolean
+    ): Promise<LotteryState[]>;
+
     /** Fetch a single ticket by its ticket number. */
     GetTicket(
       authority: HasPublicKey,

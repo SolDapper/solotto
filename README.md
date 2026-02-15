@@ -25,6 +25,7 @@ A JavaScript SDK for interacting with the Solotto on-chain lottery program on So
     - [Boost](#boost)
     - [GetBoosters](#getboosters)
     - [GetLottery](#getlottery)
+    - [GetLotteries](#getlotteries)
     - [GetTicket](#getticket)
     - [GetTickets](#gettickets)
     - [WatchDraw](#watchdraw)
@@ -397,6 +398,30 @@ const state = await lottery.GetLottery(authority, lotteryId, fees);
   releaseTime: null,             // Unix timestamp when unclaimed prizes can be released (null if not set)
 }
 ```
+
+---
+
+#### GetLotteries
+
+Fetches all lottery accounts from the program, optionally filtered by authority. Returns an array of lottery state objects sorted descending by lottery ID.
+
+```js
+// Get all lotteries across all authorities
+const allLotteries = await lottery.GetLotteries();
+
+// Get all lotteries for a specific authority
+const myLotteries = await lottery.GetLotteries(authority);
+
+// Get all lotteries with raw prize pool (no fee deduction)
+const raw = await lottery.GetLotteries(authority, false);
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `authority` | `{publicKey} \| false` | `false` | Filter by lottery authority. Pass `false` to include all authorities. |
+| `fees` | `Boolean` | `true` | If `true`, `prizePoolBalance` reflects a 10% fee deduction. |
+
+**Returns:** An array of `LotteryState` objects (same shape as `GetLottery`), sorted descending by `lotteryId`.
 
 ---
 

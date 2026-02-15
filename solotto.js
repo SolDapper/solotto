@@ -502,6 +502,32 @@ class Lottery extends EventEmitter {
         const account = await this.connection.getAccountInfo(lotteryPDA);
         return await this.DecodeLotteryState(account.data, fees);
     }
+
+    /*** 
+     * @param {PublicKey} authority - Keypair with no secretKey
+     * @param {Boolean} fees - true = prize pool - 10% (for display before drawing)
+    */
+    async GetLotteries(authority=false, fees=true) {
+        try{
+            const result = [];
+            let filters;
+            if(authority){
+                filters = [
+                    {dataSize: 150},
+                    {memcmp:{offset: 0, bytes: authority.publicKey.toString(),},}
+                ];
+            }
+            else{filters = [{dataSize: 150}];}
+            const data = await this.connection.getProgramAccounts(this.program, {filters:filters,});
+            for await (const datum of data) {
+                const decoded = await this.DecodeLotteryState(datum.account.data, fees);
+                result.push(decoded);
+            }
+            return result.sort((a, b) => b.lotteryId - a.lotteryId);
+        }
+        catch(err){return result;}
+    }
+
     async DecodeLotteryState(buffer, fees = true){
         let offset = 0;
         // Helper to handle the 1-byte Option flag
@@ -552,7 +578,7 @@ class Lottery extends EventEmitter {
             releaseTime = readOption(() => {
                 const val = buffer.readBigUInt64LE(offset);
                 offset += 8;
-                return Number(releaseTime);
+                return Number(val);
             });
         }catch{}
         const prizePoolAddress = await this.DerivePrizePoolPDA();
