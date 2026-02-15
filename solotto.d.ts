@@ -107,14 +107,23 @@ declare module "solotto" {
     ticketPda: string;
   }
 
+  interface GroupedTicketOwner {
+    /** Owner wallet public key. */
+    owner: string;
+    /** Number of tickets owned. */
+    ticketCount: number;
+    /** Array of ticket objects for this owner. */
+    tickets: TicketListItem[];
+  }
+
   interface TicketListResult {
     lotteryId: number;
     lotteryAddress: string;
     lotteryAuth: string;
     /** The buyer's public key, or `"All"` if unfiltered. */
     buyer: string;
-    /** Tickets sorted descending by ticket number. */
-    tickets: TicketListItem[];
+    /** Tickets sorted descending by ticket number, or grouped by owner when `group = true`. */
+    tickets: TicketListItem[] | GroupedTicketOwner[];
   }
 
   // ── WatchDraw Events ──────────────────────────────────────────────────
@@ -283,11 +292,12 @@ declare module "solotto" {
       ticket: number
     ): Promise<TicketInfo>;
 
-    /** Fetch all tickets for a lottery, optionally filtered by buyer. */
+    /** Fetch all tickets for a lottery, optionally filtered by buyer and/or grouped by owner. */
     GetTickets(
       authority: HasPublicKey,
       lotteryId: number,
-      buyer?: HasPublicKey | false
+      buyer?: HasPublicKey | false,
+      group?: boolean
     ): Promise<TicketListResult>;
 
     /**

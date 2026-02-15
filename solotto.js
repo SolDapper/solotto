@@ -429,12 +429,7 @@ class Lottery extends EventEmitter {
      * @param {Number} lotteryId - Lottery Id 
      * @param {PublicKey} buyer - Ticket Buyer Optional
     */
-    async GetTickets(authority, lotteryId, buyer = false) {
-        async function numberToBase58(num, byteLength = 8) {
-            const buffer = Buffer.alloc(byteLength);
-            buffer.writeBigUInt64LE(BigInt(num), 0);
-            return bs58.encode(buffer);
-        }
+    async GetTickets(authority, lotteryId, buyer = false, group = false) {
         const [lotteryPDA] = await this.DeriveLotteryPDA(authority.publicKey, lotteryId);
         const filters = [];
         filters.push({dataSize: 104});
@@ -446,8 +441,7 @@ class Lottery extends EventEmitter {
         while(i < data_.length){
             const data = data_[i];
             const newTicket = {};
-            const account = await this.connection.getAccountInfo(data.pubkey);
-            const decoded = this.TICKET_STATE.decode(account.data);
+            const decoded = this.TICKET_STATE.decode(data.account.data);
             newTicket.owner = new PublicKey(decoded.owner).toString();
             newTicket.lottery = new PublicKey(decoded.lottery).toString();
             newTicket.ticketReceipt = new PublicKey(decoded.ticketReceipt).toString();
@@ -457,6 +451,24 @@ class Lottery extends EventEmitter {
             i++;
         }
         tickets.sort((a, b) => b.ticketNumber - a.ticketNumber);
+        
+        let processedTickets = tickets;
+        if(group){
+            const grouped = {};
+            tickets.forEach(ticket => {
+                if(!grouped[ticket.owner]){
+                    grouped[ticket.owner] = {
+                        owner: ticket.owner,
+                        ticketCount: 0,
+                        tickets: []
+                    };
+                }
+                grouped[ticket.owner].tickets.push(ticket);
+                grouped[ticket.owner].ticketCount++;
+            });
+            processedTickets = Object.values(grouped);
+        }
+        
         let _buyer_ = "All";
         if(buyer){_buyer_ = buyer.publicKey.toString();}
         return {
@@ -464,7 +476,7 @@ class Lottery extends EventEmitter {
             lotteryAddress: lotteryPDA.toString(),
             lotteryAuth: authority.publicKey.toString(),
             buyer: _buyer_,
-            tickets: tickets,
+            tickets: processedTickets,
         };
     }
 

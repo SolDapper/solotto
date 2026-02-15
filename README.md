@@ -295,7 +295,7 @@ const result = await lottery.Boost(authority, lotteryId, booster, 1.0, "Good luc
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `authority` | `{publicKey}` | — | The lottery authority (only `publicKey` is needed). |
-| `lotteryId` | `Number` | — | The lottery ID. |
+| `lotteryId` | `String` | — | The lottery ID. |
 | `booster` | `Keypair` | — | The keypair of the wallet sending the boost. |
 | `amount` | `Number` | — | Amount of SOL to boost (e.g. `0.5` for 0.5 SOL). |
 | `message` | `String \| false` | `false` | Optional memo string attached to the transaction. |
@@ -431,7 +431,7 @@ const ticket = await lottery.GetTicket(authority, lotteryId, ticketNumber);
 
 #### GetTickets
 
-Fetches all tickets for a lottery, optionally filtered by buyer.
+Fetches all tickets for a lottery, optionally filtered by buyer and/or grouped by owner.
 
 ```js
 // Get all tickets
@@ -439,6 +439,9 @@ const allTickets = await lottery.GetTickets(authority, lotteryId);
 
 // Get tickets for a specific buyer
 const myTickets = await lottery.GetTickets(authority, lotteryId, buyer);
+
+// Get all tickets grouped by owner
+const grouped = await lottery.GetTickets(authority, lotteryId, false, true);
 ```
 
 | Parameter | Type | Default | Description |
@@ -446,8 +449,9 @@ const myTickets = await lottery.GetTickets(authority, lotteryId, buyer);
 | `authority` | `{publicKey}` | — | The lottery authority. |
 | `lotteryId` | `Number` | — | The lottery ID. |
 | `buyer` | `{publicKey} \| false` | `false` | Optional buyer to filter by. |
+| `group` | `Boolean` | `false` | If `true`, groups tickets by owner. |
 
-**Returns:**
+**Returns (ungrouped):**
 
 ```js
 {
@@ -464,6 +468,28 @@ const myTickets = await lottery.GetTickets(authority, lotteryId, buyer);
       ticketPda: "Pubkey...",
     },
     // ... sorted descending by ticket number
+  ],
+}
+```
+
+**Returns (grouped, `group = true`):**
+
+```js
+{
+  lotteryId: 1,
+  lotteryAddress: "Pubkey...",
+  lotteryAuth: "Pubkey...",
+  buyer: "All",
+  tickets: [
+    {
+      owner: "Pubkey...",
+      ticketCount: 3,
+      tickets: [
+        { owner: "Pubkey...", lottery: "Pubkey...", ticketReceipt: "Pubkey...", ticketNumber: 42, ticketPda: "Pubkey..." },
+        // ...
+      ],
+    },
+    // ... one entry per unique owner
   ],
 }
 ```
@@ -609,4 +635,4 @@ const result = await manager.Initialize(authority, 100000000, 1, true);
 
 ## License
 
-See [LICENSE](./LICENSE.md) for details.
+See [LICENSE](./LICENSE) for details.
