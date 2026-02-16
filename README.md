@@ -341,6 +341,7 @@ const grouped = await lottery.GetBoosters(authority, lotteryId, true);
     authority: "Pubkey...",     // Lottery authority public key
     amount: 0.5,                // Boost amount in SOL
     message: "Good luck!",     // Optional memo message (empty string if none)
+    time: 1700000000,          // Unix block timestamp of the boost transaction
     signature: "TxSignature...",
   },
   // ...
@@ -353,7 +354,7 @@ const grouped = await lottery.GetBoosters(authority, lotteryId, true);
 {
   "BoosterPubkey...": {
     boost: [
-      { booster: "Pubkey...", lotteryId: 1, authority: "Pubkey...", amount: 0.5, message: "...", signature: "TxSig..." },
+      { booster: "Pubkey...", lotteryId: 1, authority: "Pubkey...", amount: 0.5, message: "...", time: 1700000000, signature: "TxSig..." },
       // ...
     ],
     total: 1.5,    // Sum of all boost amounts in SOL
@@ -457,7 +458,7 @@ const ticket = await lottery.GetTicket(authority, lotteryId, ticketNumber);
 
 #### GetTickets
 
-Fetches all tickets for a lottery, optionally filtered by buyer and/or grouped by owner.
+Fetches all tickets for a lottery, optionally filtered by buyer, grouped by owner, and/or enriched with purchase timestamps.
 
 ```js
 // Get all tickets
@@ -468,6 +469,9 @@ const myTickets = await lottery.GetTickets(authority, lotteryId, buyer);
 
 // Get all tickets grouped by owner
 const grouped = await lottery.GetTickets(authority, lotteryId, false, true);
+
+// Get all tickets with purchase timestamps
+const withTime = await lottery.GetTickets(authority, lotteryId, false, false, true);
 ```
 
 | Parameter | Type | Default | Description |
@@ -476,6 +480,7 @@ const grouped = await lottery.GetTickets(authority, lotteryId, false, true);
 | `lotteryId` | `Number` | — | The lottery ID. |
 | `buyer` | `{publicKey} \| false` | `false` | Optional buyer to filter by. |
 | `group` | `Boolean` | `false` | If `true`, groups tickets by owner. |
+| `time` | `Boolean` | `false` | If `true`, fetches the block timestamp for each ticket (slower — requires extra RPC calls). |
 
 **Returns (ungrouped):**
 
@@ -492,6 +497,7 @@ const grouped = await lottery.GetTickets(authority, lotteryId, false, true);
       ticketReceipt: "Pubkey...",
       ticketNumber: 42,
       ticketPda: "Pubkey...",
+      time: null,              // Unix timestamp when time=true, null otherwise
     },
     // ... sorted descending by ticket number
   ],
@@ -511,7 +517,7 @@ const grouped = await lottery.GetTickets(authority, lotteryId, false, true);
       owner: "Pubkey...",
       ticketCount: 3,
       tickets: [
-        { owner: "Pubkey...", lottery: "Pubkey...", ticketReceipt: "Pubkey...", ticketNumber: 42, ticketPda: "Pubkey..." },
+        { owner: "Pubkey...", lottery: "Pubkey...", ticketReceipt: "Pubkey...", ticketNumber: 42, ticketPda: "Pubkey...", time: null },
         // ...
       ],
     },

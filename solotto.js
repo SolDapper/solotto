@@ -441,7 +441,7 @@ class Lottery extends EventEmitter {
      * @param {Number} lotteryId - Lottery Id 
      * @param {PublicKey} buyer - Ticket Buyer Optional
     */
-    async GetTickets(authority, lotteryId, buyer = false, group = false) {
+    async GetTickets(authority, lotteryId, buyer = false, group = false, time = false) {
         const [lotteryPDA] = await this.DeriveLotteryPDA(authority.publicKey, lotteryId);
         const filters = [];
         filters.push({dataSize: 104});
@@ -459,6 +459,11 @@ class Lottery extends EventEmitter {
             newTicket.ticketReceipt = new PublicKey(decoded.ticketReceipt).toString();
             newTicket.ticketNumber = parseInt(new BN(decoded.ticketNumber, 10, "le"));
             newTicket.ticketPda = data.pubkey.toString();
+            newTicket.time = null;
+            if(time){
+                const dat = await this.connection.getSignaturesForAddress(data.pubkey, "finalized");
+                newTicket.time = dat[0].blockTime;
+            }
             tickets.push(newTicket);
             i++;
         }
@@ -732,6 +737,7 @@ class Lottery extends EventEmitter {
                     else if(log.includes("Program log: Memo ")){
                         const parts = log.split(":booster:");
                         item.message = parts[1].slice(0, -1).trim();
+                        item.message = item.message.replace(new RegExp("\\\\", "g"), "");
                     }
                     else if(log.includes("Program log: Authority ")){
                         item.authority = log.replace("Program log: Authority ","").trim();
@@ -741,6 +747,7 @@ class Lottery extends EventEmitter {
                 const matchesAuthority = authority ? (item.authority && authority.publicKey.toString() === item.authority) : true;
                 const matchesLotteryId = lotteryId ? (item.lotteryId !== undefined && lotteryId.toString() === item.lotteryId.toString()) : true;
                 if(matchesAuthority && matchesLotteryId && item.amount >= 0.0001){
+                    item.time = init.blockTime;
                     item.signature = init.signature;
                     result.push(item);
                 }

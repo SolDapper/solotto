@@ -105,6 +105,8 @@ declare module "solotto" {
     ticketReceipt: string;
     ticketNumber: number;
     ticketPda: string;
+    /** Unix block timestamp of ticket purchase, or `null` when `time=false`. */
+    time: number | null;
   }
 
   interface GroupedTicketOwner {
@@ -160,6 +162,8 @@ declare module "solotto" {
     amount: number;
     /** Optional memo message from the booster. */
     message: string;
+    /** Unix block timestamp of the boost transaction. */
+    time: number;
     /** Transaction signature. */
     signature: string;
   }
@@ -310,12 +314,13 @@ declare module "solotto" {
       ticket: number
     ): Promise<TicketInfo>;
 
-    /** Fetch all tickets for a lottery, optionally filtered by buyer and/or grouped by owner. */
+    /** Fetch all tickets for a lottery, optionally filtered by buyer, grouped by owner, and/or with timestamps. */
     GetTickets(
       authority: HasPublicKey,
       lotteryId: number,
       buyer?: HasPublicKey | false,
-      group?: boolean
+      group?: boolean,
+      time?: boolean
     ): Promise<TicketListResult>;
 
     /**
