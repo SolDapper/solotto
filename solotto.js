@@ -774,6 +774,45 @@ class Lottery extends EventEmitter {
         catch (error) {return error;}
     }
 
+    /**
+     * @param {Number} limit - the results to request (max 1000)
+     * @param {String} until - until signature to stop at (optional)
+     * @returns {Array|Object} - Array of booster objects or grouped booster objects if group=true
+    */
+    async GetMessages(limit = 1000, until = null) {
+        try {
+            const result = [];
+            let allSignatures = [];
+            let lastSignature = null;
+            while (allSignatures.length < limit) {
+                const options = {limit: Math.min(1000, limit - allSignatures.length)};
+                if (lastSignature) {options.before = lastSignature;}
+                if (until) {options.until = until;}
+                const signatures = await this.connection.getSignaturesForAddress(this.program, options);
+                if (signatures.length === 0) break;
+                allSignatures.push(...signatures);
+                lastSignature = signatures[signatures.length - 1].signature;
+                if (signatures.length < options.limit) break;
+            }
+            for (const row of allSignatures) {
+                if (!row.err && 
+                    row.confirmationStatus === "finalized" && 
+                    row.memo && 
+                    row.memo.includes(":booster:")) {
+                    const memo = {
+                        message: row.memo.split(":booster:")[1].trim(),
+                        time: row.blockTime,
+                        signature: row.signature
+                    };
+                    result.push(memo);
+                }
+            }
+            return result;
+        } catch (error) {
+            return error;
+        }
+    }
+
 }
 
 class LotteryManager {

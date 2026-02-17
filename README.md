@@ -24,6 +24,7 @@ A JavaScript SDK for interacting with the Solotto on-chain lottery program on So
     - [ClaimTicket](#claimticket)
     - [Boost](#boost)
     - [GetBoosters](#getboosters)
+    - [GetMessages](#getmessages)
     - [GetLottery](#getlottery)
     - [GetLotteries](#getlotteries)
     - [GetTicket](#getticket)
@@ -362,6 +363,41 @@ const grouped = await lottery.GetBoosters(authority, lotteryId, true);
   },
   // ...
 }
+```
+
+---
+
+#### GetMessages
+
+Retrieves boost memo messages from on-chain transaction history. Paginates through program signatures and extracts messages from transactions tagged with `:booster:`. Useful for displaying a feed of booster shoutouts.
+
+```js
+// Get the latest boost messages (up to 1000)
+const messages = await lottery.GetMessages();
+
+// Get up to 200 messages
+const recent = await lottery.GetMessages(200);
+
+// Paginate: get messages until a specific signature
+const older = await lottery.GetMessages(1000, "LastKnownSignature...");
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `limit` | `Number` | `1000` | Maximum number of transactions to scan. Paginates automatically if needed. |
+| `until` | `String \| null` | `null` | Stop scanning at this transaction signature (exclusive). Useful for pagination. |
+
+**Returns:** An array of message objects:
+
+```js
+[
+  {
+    message: "Good luck everyone!",   // The booster's memo text
+    time: 1700000000,                  // Unix block timestamp
+    signature: "TxSignature...",       // Transaction signature
+  },
+  // ...
+]
 ```
 
 ---

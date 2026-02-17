@@ -181,6 +181,15 @@ declare module "solotto" {
     [boosterAddress: string]: GroupedBooster;
   }
 
+  interface MessageRecord {
+    /** The booster's memo text. */
+    message: string;
+    /** Unix block timestamp of the transaction. */
+    time: number;
+    /** Transaction signature. */
+    signature: string;
+  }
+
   // ── Authority-like objects ────────────────────────────────────────────
 
   /** An object with at least a `publicKey` property (e.g. a Keypair without the secret key). */
@@ -366,6 +375,16 @@ declare module "solotto" {
       group?: boolean,
       limit?: number
     ): Promise<BoosterRecord[] | GroupedBoostersResult>;
+
+    /**
+     * Retrieve boost memo messages from on-chain transaction history.
+     * @param limit - Maximum number of transactions to scan (paginates automatically).
+     * @param until - Stop scanning at this transaction signature (exclusive).
+     */
+    GetMessages(
+      limit?: number,
+      until?: string | null
+    ): Promise<MessageRecord[]>;
 
     /** Derive the lottery PDA. */
     DeriveLotteryPDA(
