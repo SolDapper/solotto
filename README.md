@@ -312,7 +312,7 @@ const result = await lottery.Boost(authority, lotteryId, booster, 1.0, "Good luc
 
 #### GetBoosters
 
-Retrieves boost history by scanning on-chain program logs for boost transactions. Filters out errored and non-finalized transactions, and only includes boosts of at least 0.0001 SOL. Can filter by authority, lottery ID, or both, and optionally group results by booster wallet address.
+Retrieves boost history by scanning on-chain program logs for boost transactions. Filters out errored and non-finalized transactions. Can filter by authority, lottery ID, or both, and optionally group results by booster wallet address.
 
 ```js
 // Get all boosters for a specific lottery

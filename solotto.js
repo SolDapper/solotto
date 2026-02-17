@@ -746,7 +746,7 @@ class Lottery extends EventEmitter {
                 // Apply filters with safety checks
                 const matchesAuthority = authority ? (item.authority && authority.publicKey.toString() === item.authority) : true;
                 const matchesLotteryId = lotteryId ? (item.lotteryId !== undefined && lotteryId.toString() === item.lotteryId.toString()) : true;
-                if(matchesAuthority && matchesLotteryId && item.amount >= 0.0001){
+                if(matchesAuthority && matchesLotteryId){
                     item.time = init.blockTime;
                     item.signature = init.signature;
                     result.push(item);
