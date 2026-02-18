@@ -441,7 +441,7 @@ class Lottery extends EventEmitter {
      * @param {Number} lotteryId - Lottery Id 
      * @param {PublicKey} buyer - Ticket Buyer Optional
     */
-    async GetTickets(authority, lotteryId, buyer = false, group = false, time = false) {
+    async GetTickets(authority, lotteryId, buyer = false, group = false, time = false, signature = false) {
         const [lotteryPDA] = await this.DeriveLotteryPDA(authority.publicKey, lotteryId);
         const filters = [];
         filters.push({dataSize: 104});
@@ -460,10 +460,10 @@ class Lottery extends EventEmitter {
             newTicket.ticketNumber = parseInt(new BN(decoded.ticketNumber, 10, "le"));
             newTicket.ticketPda = data.pubkey.toString();
             newTicket.time = null;
-            if(time){
-                const dat = await this.connection.getSignaturesForAddress(data.pubkey, "finalized");
-                newTicket.time = dat[0].blockTime;
-            }
+            let dat = null;
+            if(time || signature){dat = await this.connection.getSignaturesForAddress(data.pubkey, "finalized");}
+            if(time){newTicket.time = dat[0].blockTime;}
+            if(signature){newTicket.signature = dat[0].signature;}
             tickets.push(newTicket);
             i++;
         }

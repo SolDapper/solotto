@@ -494,7 +494,7 @@ const ticket = await lottery.GetTicket(authority, lotteryId, ticketNumber);
 
 #### GetTickets
 
-Fetches all tickets for a lottery, optionally filtered by buyer, grouped by owner, and/or enriched with purchase timestamps.
+Fetches all tickets for a lottery, optionally filtered by buyer, grouped by owner, and/or enriched with purchase timestamps and transaction signatures.
 
 ```js
 // Get all tickets
@@ -508,6 +508,9 @@ const grouped = await lottery.GetTickets(authority, lotteryId, false, true);
 
 // Get all tickets with purchase timestamps
 const withTime = await lottery.GetTickets(authority, lotteryId, false, false, true);
+
+// Get all tickets with timestamps and signatures
+const full = await lottery.GetTickets(authority, lotteryId, false, false, true, true);
 ```
 
 | Parameter | Type | Default | Description |
@@ -516,7 +519,10 @@ const withTime = await lottery.GetTickets(authority, lotteryId, false, false, tr
 | `lotteryId` | `Number` | — | The lottery ID. |
 | `buyer` | `{publicKey} \| false` | `false` | Optional buyer to filter by. |
 | `group` | `Boolean` | `false` | If `true`, groups tickets by owner. |
-| `time` | `Boolean` | `false` | If `true`, fetches the block timestamp for each ticket (slower — requires extra RPC calls). |
+| `time` | `Boolean` | `false` | If `true`, includes the block timestamp for each ticket. |
+| `signature` | `Boolean` | `false` | If `true`, includes the transaction signature for each ticket. |
+
+> **Note:** The `time` and `signature` options share a single RPC call per ticket, so enabling both does not double the number of requests.
 
 **Returns (ungrouped):**
 
@@ -534,6 +540,7 @@ const withTime = await lottery.GetTickets(authority, lotteryId, false, false, tr
       ticketNumber: 42,
       ticketPda: "Pubkey...",
       time: null,              // Unix timestamp when time=true, null otherwise
+      signature: "TxSig...",   // Present only when signature=true
     },
     // ... sorted descending by ticket number
   ],
