@@ -402,8 +402,8 @@ declare module "solotto" {
       ticketReceipt: PublicKey
     ): Promise<[PublicKey, number]>;
 
-    /** Derive the prize pool PDA. */
-    DerivePrizePoolPDA(): Promise<[PublicKey, number]>;
+    /** Derive the per-lottery prize pool PDA. Seeds: ["prize-pool", lotteryPDA]. */
+    DerivePrizePoolPDA(lotteryPDA: PublicKey): Promise<[PublicKey, number]>;
   }
 
   /**

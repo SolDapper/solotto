@@ -429,7 +429,7 @@ const state = await lottery.GetLottery(authority, lotteryId, fees);
   isActive: true,                // Whether the lottery is active
   prizePoolBalance: 3780000000,  // Prize pool in lamports (after fees if fees=true)
   drawInitiated: false,          // Whether a draw has been initiated
-  prizePoolAddress: "Pubkey...", // Prize pool PDA
+  prizePoolAddress: "Pubkey...", // Per-lottery prize pool PDA (seeds: ["prize-pool", lotteryPDA])
   lotteryAddress: "Pubkey...",   // Lottery PDA
   release: "Pubkey...",          // Release address (lottery PDA)
   releaseTime: null,             // Unix timestamp when unclaimed prizes can be released (null if not set)

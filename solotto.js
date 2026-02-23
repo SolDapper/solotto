@@ -276,6 +276,7 @@ class Lottery extends EventEmitter {
             { pubkey: new PublicKey(LOTTO.ticket.ticketReceipt), isSigner: false, isWritable: false },
             { pubkey: new PublicKey(LOTTO.ticket.ticketPda), isSigner: false, isWritable: false },
             { pubkey: new PublicKey(LOTTO.prizePoolAddress), isSigner: false, isWritable: true },
+            { pubkey: new PublicKey(LOTTO.authority), isSigner: false, isWritable: true },
             { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         ];
         const ix = new TransactionInstruction({programId: this.program, keys, data: await claimData()});
@@ -586,8 +587,8 @@ class Lottery extends EventEmitter {
                 return Number(val);
             });
         }catch{}
-        const prizePoolAddress = await this.DerivePrizePoolPDA();
         const lotteryAddress = await this.DeriveLotteryPDA(new PublicKey(auth), lotteryId);
+        const prizePoolAddress = await this.DerivePrizePoolPDA(lotteryAddress[0]);
         let prizePoolBalance = prizePool;
         if(fees){prizePoolBalance = prizePool - (prizePool * 0.1);}
         return {
@@ -625,8 +626,8 @@ class Lottery extends EventEmitter {
             programId
         );
     }
-    async DerivePrizePoolPDA() {
-      return PublicKey.findProgramAddressSync([Buffer.from("prize-pool")], this.program);
+    async DerivePrizePoolPDA(lotteryPDA) {
+      return PublicKey.findProgramAddressSync([Buffer.from("prize-pool"), lotteryPDA.toBuffer()], this.program);
     }
 
     /**
@@ -840,11 +841,13 @@ class LotteryManager {
             return buffer;
         }
         const [lotteryPDA, bump] = await lottery.DeriveLotteryPDA(authority.publicKey, lotteryId);
+        const [prizePoolPDA] = await lottery.DerivePrizePoolPDA(lotteryPDA);
         console.log("Lottery PDA:", lotteryPDA.toString());
         const ix = new TransactionInstruction({
             keys: [
                 { pubkey: authority.publicKey, isSigner: true, isWritable: true },
                 { pubkey: lotteryPDA, isSigner: false, isWritable: true },
+                { pubkey: prizePoolPDA, isSigner: false, isWritable: true },
                 { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
             ],
             programId: this.program,
@@ -893,7 +896,7 @@ class LotteryManager {
             const lottery = new Lottery(this.connection, false, this.program);
             const network = new LotteryNetwork(this.connection);
             const [lotteryPDA] = await lottery.DeriveLotteryPDA(authority.publicKey, lotteryId);
-            const [prizePoolPDA] = await lottery.DerivePrizePoolPDA();
+            const [prizePoolPDA] = await lottery.DerivePrizePoolPDA(lotteryPDA);
             const keys = [
                 { pubkey: authority.publicKey, isSigner: true, isWritable: false },
                 { pubkey: lotteryPDA, isSigner: false, isWritable: true },
