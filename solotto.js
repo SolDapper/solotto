@@ -277,7 +277,6 @@ class Lottery extends EventEmitter {
             { pubkey: new PublicKey(LOTTO.ticket.ticketPda), isSigner: false, isWritable: false },
             { pubkey: new PublicKey(LOTTO.prizePoolAddress), isSigner: false, isWritable: true },
             { pubkey: new PublicKey(LOTTO.authority), isSigner: false, isWritable: true },
-            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         ];
         const ix = new TransactionInstruction({programId: this.program, keys, data: await claimData()});
         const _tx_ = {};
