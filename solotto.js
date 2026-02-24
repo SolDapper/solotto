@@ -898,11 +898,10 @@ class LotteryManager {
             const [lotteryPDA] = await lottery.DeriveLotteryPDA(authority.publicKey, lotteryId);
             const [prizePoolPDA] = await lottery.DerivePrizePoolPDA(lotteryPDA);
             const keys = [
-                { pubkey: authority.publicKey, isSigner: true, isWritable: false },
+                { pubkey: authority.publicKey, isSigner: true, isWritable: true },
                 { pubkey: lotteryPDA, isSigner: false, isWritable: true },
                 { pubkey: SYSVAR_SLOT_HASHES_PUBKEY, isSigner: false, isWritable: false },
                 { pubkey: prizePoolPDA, isSigner: false, isWritable: true },
-                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
             ];
             const ix = new TransactionInstruction({programId: this.program, keys, data: await randomnessData()});
             const _tx_ = {};
@@ -1021,7 +1020,6 @@ class LotteryManager {
                 { pubkey: authority.publicKey, isSigner: true, isWritable: true },
                 { pubkey: lotteryPDA, isSigner: false, isWritable: true },
                 { pubkey: new PublicKey(LOTTO.prizePoolAddress), isSigner: false, isWritable: true },
-                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
             ];
             const ix = new TransactionInstruction({programId: this.program, keys, data: await expiredData()});
             const _tx_ = {};
