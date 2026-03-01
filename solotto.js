@@ -188,6 +188,8 @@ class Lottery extends EventEmitter {
         this.connection=connection;
         this.wss=wss;
         this.program=program;
+        this.priority="Low";
+        this.tolerance=1.2;
         this.TICKET_STATE = BufferLayout.struct([
             publicKey("owner"),
             publicKey("lottery"),
@@ -260,7 +262,7 @@ class Lottery extends EventEmitter {
      * @param {PublicKey} winner - Keypair with no secretKey
      * @param {Boolean} encoded - true returns encoded transaction
     */
-    async ClaimTicket(authority, lotteryId, winner, encoded = false){
+    async ClaimTicket(authority, lotteryId, winner, encoded = false, options = {}){
         async function claimData() {
             const buffer = Buffer.alloc(1);
             buffer.writeUInt8(INSTRUCTIONS.CLAIM_PRIZE, 0);
@@ -284,11 +286,11 @@ class Lottery extends EventEmitter {
         _tx_.instructions = [ix];                      // array  : required
         _tx_.signers = false;                          // array  : default false
         _tx_.table = false;                            // array  : default false
-        _tx_.tolerance = 1.2;                          // int    : default 1.1    
+        _tx_.tolerance = options.tolerance ?? this.tolerance ?? 1.2;
         _tx_.compute = true;                           // bool   : default true
         _tx_.fees = true;                              // bool   : default true
-        _tx_.priority = "Low"; 
-        if(encoded){
+        _tx_.priority = options.priority ?? this.priority ?? "Low";
+if(encoded){
             _tx_.serialize = true;                        
             _tx_.encode = true;  
         }
@@ -316,7 +318,7 @@ class Lottery extends EventEmitter {
      * @param {Number} amount - Ticket Qty 1-4
      * @param {Boolean} encoded - true returns encoded transaction
     */
-    async BuyTickets(buyer, authority, lotteryId, amount = 1, encoded = false){
+    async BuyTickets(buyer, authority, lotteryId, amount = 1, encoded = false, options = {}){
         const network = new LotteryNetwork(this.connection);
         const result = await this.BundleTickets(authority, buyer, lotteryId, amount);
         const _tx_ = {};
@@ -324,11 +326,11 @@ class Lottery extends EventEmitter {
         _tx_.instructions = result.ixs;                // array  : required
         _tx_.signers = result.signers;                 // array  : default false
         _tx_.table = false;                            // array  : default false
-        _tx_.tolerance = 1.2;                          // int    : default 1.1    
+        _tx_.tolerance = options.tolerance ?? this.tolerance ?? 1.2;
         _tx_.compute = true;                           // bool   : default true
         _tx_.fees = true;                              // bool   : default true
-        _tx_.priority = "Low"; 
-        if(encoded){
+        _tx_.priority = options.priority ?? this.priority ?? "Low";
+if(encoded){
             _tx_.serialize = true;                        
             _tx_.encode = true;  
         }
@@ -636,7 +638,7 @@ class Lottery extends EventEmitter {
      * @param {Number} amount - The amount of sol to boost
      * @param {Boolean} encoded - true returns encoded transaction
     */
-    async Boost(authority, lotteryId, booster, amount, message = false, encoded = false) {
+    async Boost(authority, lotteryId, booster, amount, message = false, encoded = false, options = {}) {
         try{
             async function boostData(lotId, amount) {
                 const lamports = parseInt(amount * LAMPORTS_PER_SOL);
@@ -664,10 +666,11 @@ class Lottery extends EventEmitter {
             _tx_.instructions = [ix];                      // array  : required
             _tx_.signers = false;                          // array  : default false
             _tx_.table = false;                            // array  : default false
-            _tx_.tolerance = 1.2;                          // int    : default 1.1    
+            _tx_.tolerance = options.tolerance ?? this.tolerance ?? 1.2;
             _tx_.compute = true;                           // bool   : default true
             _tx_.fees = true;                              // bool   : default true
-            _tx_.priority = "Low";                         // string : default Low
+            _tx_.priority = options.priority ?? this.priority ?? "Low";
+
             _tx_.memo = message;
             if(encoded){
                 _tx_.serialize = true;                        
@@ -821,7 +824,7 @@ class LotteryManager {
     * @param {Connection} connection - Solana connection
     * @param {PublicKey} program - Lottery Program Id 
     */
-    constructor(connection, program){this.connection=connection;this.program=program;}
+    constructor(connection, program){this.connection=connection;this.program=program;this.priority="Low";this.tolerance=1.2;}
     
     /*** 
      * @param {Keypair} authority - Keypair
@@ -829,7 +832,7 @@ class LotteryManager {
      * @param {String} lotteryId - String 
      * @param {Boolean} encoded - true returns encoded transaction
     */
-    async Initialize(authority, ticketPrice, lotteryId, encoded = false){
+    async Initialize(authority, ticketPrice, lotteryId, encoded = false, options = {}){
         const lottery = new Lottery(this.connection, false, this.program);
         const network = new LotteryNetwork(this.connection);
         async function initializeData(tketPrice, lotId) {
@@ -857,10 +860,11 @@ class LotteryManager {
         _tx_.instructions = [ix];                      // array  : required
         _tx_.signers = false;                          // array  : default false
         _tx_.table = false;                            // array  : default false
-        _tx_.tolerance = 1.2;                          // int    : default 1.1    
+        _tx_.tolerance = options.tolerance ?? this.tolerance ?? 1.2;
         _tx_.compute = true;                           // bool   : default true
         _tx_.fees = true;                              // bool   : default true
-        _tx_.priority = "Low";                         // string : default Low
+        _tx_.priority = options.priority ?? this.priority ?? "Low";
+
         if(encoded){
             _tx_.serialize = true;                        
             _tx_.encode = true;  
@@ -885,7 +889,7 @@ class LotteryManager {
      * @param {String} lotteryId - The lottery id
      * @param {Boolean} encoded - true returns encoded transaction
     */
-    async RandomDraw(authority, lotteryId, encoded = false) {
+    async RandomDraw(authority, lotteryId, encoded = false, options = {}) {
         try{
             async function randomnessData() {
                 const buffer = Buffer.alloc(1);
@@ -908,10 +912,11 @@ class LotteryManager {
             _tx_.instructions = [ix];                      // array  : required
             _tx_.signers = false;                          // array  : default false
             _tx_.table = false;                            // array  : default false
-            _tx_.tolerance = 1.2;                          // int    : default 1.1    
+            _tx_.tolerance = options.tolerance ?? this.tolerance ?? 1.2;
             _tx_.compute = true;                           // bool   : default true
             _tx_.fees = true;                              // bool   : default true
-            _tx_.priority = "Low";                         // string : default Low
+            _tx_.priority = options.priority ?? this.priority ?? "Low";
+
             _tx_.memo = "draw";
             if(encoded){
                 _tx_.serialize = true;                        
@@ -946,7 +951,7 @@ class LotteryManager {
      * @param {Number} lockState - 0 = lock ticket sales, 1 = unlock (requires authority)
      * @param {Boolean} encoded - true returns encoded transaction
     */
-    async LockLottery(authority, lotteryId, lockState, encoded = false) {
+    async LockLottery(authority, lotteryId, lockState, encoded = false, options = {}) {
         try{
             async function lockData(lock) {
                 const buffer = Buffer.alloc(2); // 1 byte discriminator + 1 bytes lock status
@@ -967,10 +972,11 @@ class LotteryManager {
             _tx_.instructions = [ix];                      // array  : required
             _tx_.signers = false;                          // array  : default false
             _tx_.table = false;                            // array  : default false
-            _tx_.tolerance = 1.2;                          // int    : default 1.1    
+            _tx_.tolerance = options.tolerance ?? this.tolerance ?? 1.2;
             _tx_.compute = true;                           // bool   : default true
             _tx_.fees = true;                              // bool   : default true
-            _tx_.priority = "Low";                         // string : default Low
+            _tx_.priority = options.priority ?? this.priority ?? "Low";
+
             _tx_.memo = false;
             if(encoded){
                 _tx_.serialize = true;                        
@@ -1004,7 +1010,7 @@ class LotteryManager {
      * @param {String} lotteryId - The lottery id
      * @param {Boolean} encoded - true returns encoded transaction
     */
-    async ClaimExpired(authority, lotteryId, encoded = false) {
+    async ClaimExpired(authority, lotteryId, encoded = false, options = {}) {
         try{
             async function expiredData() {
                 const buffer = Buffer.alloc(1); // 1 byte discriminator + 1 bytes lock status
@@ -1026,10 +1032,11 @@ class LotteryManager {
             _tx_.instructions = [ix];                      // array  : required
             _tx_.signers = false;                          // array  : default false
             _tx_.table = false;                            // array  : default false
-            _tx_.tolerance = 1.2;                          // int    : default 1.1    
+            _tx_.tolerance = options.tolerance ?? this.tolerance ?? 1.2;
             _tx_.compute = true;                           // bool   : default true
             _tx_.fees = true;                              // bool   : default true
-            _tx_.priority = "Low";                         // string : default Low
+            _tx_.priority = options.priority ?? this.priority ?? "Low";
+
             _tx_.memo = false;
             if(encoded){
                 _tx_.serialize = true;                        

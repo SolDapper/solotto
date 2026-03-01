@@ -6,6 +6,14 @@ declare module "solotto" {
 
   type PriorityLevel = "Low" | "Medium" | "High" | "VeryHigh" | "Extreme";
 
+  /** Per-call overrides for transaction priority and compute tolerance. */
+  interface TxOptions {
+    /** Priority fee level. Overrides instance default. */
+    priority?: PriorityLevel;
+    /** Compute unit safety multiplier. Overrides instance default. */
+    tolerance?: number;
+  }
+
   interface TxParams {
     /** Payer public key as a base-58 string. */
     account: string;
@@ -257,6 +265,10 @@ declare module "solotto" {
     connection: Connection;
     wss: string | false;
     program: PublicKey;
+    /** Default priority fee level for all transactions. Defaults to `"Low"`. */
+    priority: PriorityLevel;
+    /** Default compute unit safety multiplier for all transactions. Defaults to `1.2`. */
+    tolerance: number;
 
     constructor(connection: Connection, wss: string | false, program: PublicKey);
 
@@ -277,13 +289,15 @@ declare module "solotto" {
      * @param lotteryId - Lottery numeric identifier.
      * @param amount    - Number of tickets to buy (1–4, default `1`).
      * @param encoded   - If `true`, return a base64-encoded transaction.
+     * @param options   - Per-call overrides for priority and tolerance.
      */
     BuyTickets(
       buyer: Keypair,
       authority: HasPublicKey,
       lotteryId: number,
       amount?: number,
-      encoded?: boolean
+      encoded?: boolean,
+      options?: TxOptions
     ): Promise<string | TxResult>;
 
     /**
@@ -292,12 +306,14 @@ declare module "solotto" {
      * @param lotteryId - Lottery numeric identifier.
      * @param winner    - The winning ticket owner's keypair.
      * @param encoded   - If `true`, return a base64-encoded transaction.
+     * @param options   - Per-call overrides for priority and tolerance.
      */
     ClaimTicket(
       authority: HasPublicKey,
       lotteryId: number,
       winner: Keypair,
-      encoded?: boolean
+      encoded?: boolean,
+      options?: TxOptions
     ): Promise<string | string[] | TxResult>;
 
     /** Fetch the on-chain state of a lottery. */
@@ -343,6 +359,7 @@ declare module "solotto" {
      * @param amount    - Amount of SOL to boost (e.g. `0.5` for 0.5 SOL).
      * @param message   - Optional memo string attached to the transaction.
      * @param encoded   - If `true`, return a base64-encoded transaction.
+     * @param options   - Per-call overrides for priority and tolerance.
      */
     Boost(
       authority: HasPublicKey,
@@ -350,7 +367,8 @@ declare module "solotto" {
       booster: Keypair,
       amount: number,
       message?: string | false,
-      encoded?: boolean
+      encoded?: boolean,
+      options?: TxOptions
     ): Promise<string | TxResult | undefined>;
 
     /**
@@ -412,6 +430,10 @@ declare module "solotto" {
   export class LotteryManager {
     connection: Connection;
     program: PublicKey;
+    /** Default priority fee level for all transactions. Defaults to `"Low"`. */
+    priority: PriorityLevel;
+    /** Default compute unit safety multiplier for all transactions. Defaults to `1.2`. */
+    tolerance: number;
 
     constructor(connection: Connection, program: PublicKey);
 
@@ -421,12 +443,14 @@ declare module "solotto" {
      * @param ticketPrice - Ticket price in lamports.
      * @param lotteryId   - A unique numeric lottery identifier.
      * @param encoded     - If `true`, return a base64-encoded transaction.
+     * @param options     - Per-call overrides for priority and tolerance.
      */
     Initialize(
       authority: Keypair,
       ticketPrice: number,
       lotteryId: number,
-      encoded?: boolean
+      encoded?: boolean,
+      options?: TxOptions
     ): Promise<string | TxResult>;
 
     /**
@@ -434,11 +458,13 @@ declare module "solotto" {
      * @param authority - The lottery authority keypair.
      * @param lotteryId - Lottery numeric identifier.
      * @param encoded   - If `true`, return a base64-encoded transaction.
+     * @param options   - Per-call overrides for priority and tolerance.
      */
     RandomDraw(
       authority: Keypair,
       lotteryId: number,
-      encoded?: boolean
+      encoded?: boolean,
+      options?: TxOptions
     ): Promise<LotteryState | string | TxResult | undefined>;
 
     /**
@@ -447,12 +473,14 @@ declare module "solotto" {
      * @param lotteryId - Lottery numeric identifier.
      * @param lockState - `0` to lock (stop sales), `1` to unlock.
      * @param encoded   - If `true`, return a base64-encoded transaction.
+     * @param options   - Per-call overrides for priority and tolerance.
      */
     LockLottery(
       authority: Keypair,
       lotteryId: number,
       lockState: 0 | 1,
-      encoded?: boolean
+      encoded?: boolean,
+      options?: TxOptions
     ): Promise<LotteryState | string | TxResult | undefined>;
 
     /**
@@ -460,11 +488,13 @@ declare module "solotto" {
      * @param authority - The lottery authority keypair.
      * @param lotteryId - Lottery numeric identifier.
      * @param encoded   - If `true`, return a base64-encoded transaction.
+     * @param options   - Per-call overrides for priority and tolerance.
      */
     ClaimExpired(
       authority: Keypair,
       lotteryId: number,
-      encoded?: boolean
+      encoded?: boolean,
+      options?: TxOptions
     ): Promise<LotteryState | string | TxResult | undefined>;
   }
 }
