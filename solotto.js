@@ -532,7 +532,7 @@ if(encoded){
             }
             return result.sort((a, b) => b.lotteryId - a.lotteryId);
         }
-        catch(err){return result;}
+        catch(err){return [];}
     }
 
     async DecodeLotteryState(buffer, fees = true){
